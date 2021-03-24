@@ -50,7 +50,7 @@ impl KafkaOuput {
     }
 
     async fn write_out(topic: &str, cons: &mut RConsumer<Item>, kp: &mut Producer) {
-        let count = 5;
+        let count = 10240;
         let mut index = 0;
         let mut now = Instant::now();
         let mut write_buffer = Vec::with_capacity(count);
@@ -134,7 +134,7 @@ impl IOutput for KafkaOuput {
 //     fn kafka_working() {
 //         //first docker run a kafka
 //         let mut ko = KafkaOuput::new();
-//         for index in 0..1000 {
+//         for index in 0..10000 {
 //             let item = Item::from(format!("{:?} xx", index).as_str());
 //             if let Err(e) = ko.write(&"kafka:test@10.200.100.200:9092", item) {
 //                 panic!("{:?}", e)
