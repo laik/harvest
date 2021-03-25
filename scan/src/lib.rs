@@ -142,11 +142,10 @@ impl AutoScanner {
         if self.namespace != v.get_ns() {
             return;
         }
-        let cache = self.cache.clone();
-        let writer = cache[(self.hash(k) % cache.len()) as usize].write();
+        let writer = self.cache[(self.hash(k) % self.cache.len()) as usize].write();
         match writer {
             Ok(mut w) => {
-                w.insert(k.into(), Some(v));
+                w.insert(k.to_string(), Some(v));
             }
             Err(e) => {
                 eprintln!("cache insert failed: {:?}", e)
@@ -155,11 +154,13 @@ impl AutoScanner {
     }
 
     fn insert_key(&self, k: &str) {
-        let cache = self.cache.clone();
-        let writer = cache[(self.hash(k) % cache.len()) as usize].write();
+        let writer = self.cache[(self.hash(k) % self.cache.len()) as usize].write();
         match writer {
             Ok(mut w) => {
-                w.insert(k.into(), None);
+                if w.contains_key(k) {
+                    return;
+                }
+                w.insert(k.to_string(), None);
             }
             Err(e) => {
                 eprintln!("cache insert failed: {:?}", e)
