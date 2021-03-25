@@ -1,6 +1,7 @@
 #![feature(seek_stream_len)]
 extern crate crossbeam_channel;
 use async_std::task;
+use common::Item;
 use crossbeam_channel::{unbounded as async_channel, Sender};
 use db::Pod;
 use output::OTS;
@@ -132,6 +133,11 @@ fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
     if message.len() == 0 {
         return "".to_string();
     }
+    let message_item = Item::from(message);
+    if message_item.is_json() {
+        
+    }
+
     json!({
         "custom":
             {

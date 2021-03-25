@@ -1,3 +1,4 @@
+extern crate ajson;
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -41,6 +42,10 @@ impl Item {
             Item::JSON(_) => true,
             Item::Default(_) => false,
         }
+    }
+
+    pub fn get_key(&self, key: &str) -> String {
+        ajson::get(&self.string(), key).unwrap().as_str().to_string()
     }
 
     pub fn string(&self) -> String {
