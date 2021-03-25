@@ -1,8 +1,8 @@
-FROM rustlang/rust:nightly-stretch as cargo-build
+FROM yametech/rust:nightly-stretch as cargo-build
 
 RUN apt-get update
 
-RUN apt-get install musl-tools pkg-config -y
+RUN apt-get install musl-tools pkg-config openssl libssl-dev -y
 
 RUN rustup target add x86_64-unknown-linux-musl
 

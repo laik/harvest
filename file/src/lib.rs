@@ -135,21 +135,32 @@ fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
     }
     let message_item = Item::from(message);
     if message_item.is_json() {
-        
+        json!({
+            "custom":
+                {
+                  "nodeId":pod.pod_name,
+                  "container":pod.container,
+                  "serviceName":pod.service_name,
+                  "ips":pod.ips,
+                  "version":"v1.0.0",
+                },
+            "message":message_item.get_key("log")}
+        )
+        .to_string()
+    } else {
+        json!({
+            "custom":
+                {
+                  "nodeId":pod.pod_name,
+                  "container":pod.container,
+                  "serviceName":pod.service_name,
+                  "ips":pod.ips,
+                  "version":"v1.0.0",
+                },
+            "message":message_item.string()}
+        )
+        .to_string()
     }
-
-    json!({
-        "custom":
-            {
-              "nodeId":pod.pod_name,
-              "container":pod.container,
-              "serviceName":pod.service_name,
-              "ips":pod.ips,
-              "version":"v1.0.0",
-            },
-        "message":message}
-    )
-    .to_string()
 }
 
 #[cfg(test)]
