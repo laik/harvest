@@ -59,7 +59,12 @@ impl KafkaOuput {
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
-            let content = cons.pop().unwrap().string();
+            let content = match cons.pop() {
+                Some(it) => it.string(),
+                None => {
+                    continue;
+                }
+            };
             write_buffer.push(Record::from_key_value(
                 topic,
                 format!("{:?}", index),
@@ -68,6 +73,7 @@ impl KafkaOuput {
             index += 1;
 
             if index >= write_buffer.capacity() || now.elapsed().as_secs() > 1 {
+                // TODO 需要改成时间触发
                 match kp.send_all(&write_buffer) {
                     Ok(_) => {
                         index = 0;

@@ -3,3 +3,6 @@ linux:
 
 run:
 	RUST_BACKTRACE=full cargo run -- --namespace kube-system --docker-dir ${PWD}/tmp --api-server http://localhost:9999/ --host node1
+	
+docker:
+	docker build -t yametech/harvest:latest .

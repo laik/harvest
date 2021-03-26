@@ -1,4 +1,4 @@
-FROM yametech/rust:nightly-stretch as cargo-build
+FROM rust:latest as cargo-build
 
 RUN apt-get update
 
@@ -8,19 +8,16 @@ RUN rustup target add x86_64-unknown-linux-musl
 
 WORKDIR /usr/src/harvest
 
-COPY Cargo.toml Cargo.toml
-
 ADD . .
 
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
+COPY config ${HOME}/.cargo/config
 
-RUN rm -f target/x86_64-unknown-linux-musl/release/deps/harvest*
+RUN rm -f target/release/harvest*
 
-ADD . .
+RUN rustup default nightly
 
-# RUN mv config ${HOME}/.cargo/config
+RUN CARGO_HTTP_MULTIPLEXING=false cargo build --release
 
-RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
 
 # ------------------------------------------------------------------------------
 # Final Stage
@@ -28,6 +25,6 @@ RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-li
 
 FROM alpine:latest
 
-COPY --from=cargo-build /usr/src/harvest/target/x86_64-unknown-linux-musl/release/harvest /usr/local/bin/harvest
+COPY --from=cargo-build /usr/src/harvest/target/release/harvest /usr/local/bin/harvest
 
 ENTRYPOINT ["harvest"]
