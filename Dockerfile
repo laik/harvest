@@ -12,11 +12,14 @@ COPY . .
 
 COPY config ${HOME}/.cargo/config.toml
 
-RUN cargo vendor
+RUN CARGO_HTTP_MULTIPLEXING=false cargo vendor
+
+RUN echo '[source.crates-io] \
+replace-with = "vendored-sources" \
+[source.vendored-sources] \
+directory = "vendor"' > ${HOME}/.cargo/config.toml
 
 RUN rm -f target/x86_64-unknown-linux-musl/release/deps/harvest*
-
-ENV CARGO_HTTP_MULTIPLEXING=false 
 
 RUN RUSTFLAGS=-Clinker=musl-gcc cargo build --release --target=x86_64-unknown-linux-musl
 
