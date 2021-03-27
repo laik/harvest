@@ -4,7 +4,7 @@ WORKDIR /usr/src/harvest
 
 ADD . .
 
-ADD config ${HOME}/.cargo/config
+# ADD config ${HOME}/.cargo/config
 
 RUN cargo build --release && ls -alt /target/release/*
 
