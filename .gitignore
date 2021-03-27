@@ -1,8 +1,7 @@
 tmp/
-target/
+target
 Cargo.lock
 
-/target
 .idea
 .vscode
 

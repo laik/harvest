@@ -73,7 +73,6 @@ impl KafkaOuput {
             index += 1;
 
             if index >= write_buffer.capacity() || now.elapsed().as_secs() > 1 {
-                // TODO 需要改成时间触发
                 match kp.send_all(&write_buffer) {
                     Ok(_) => {
                         index = 0;
