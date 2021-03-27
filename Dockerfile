@@ -6,7 +6,7 @@ ADD . .
 
 # ADD config ${HOME}/.cargo/config
 
-RUN cargo build --release && ls -alt /target/release/*
+RUN cargo build --release && ls -alt /target/release/
 
 FROM alpine:latest
 
