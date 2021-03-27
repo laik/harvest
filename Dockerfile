@@ -1,8 +1,6 @@
 FROM rust:latest as cargo-build
 
-RUN apt-get update
-
-RUN apt-get install musl-tools pkg-config openssl libssl-dev -y
+RUN apt-get update && apt-get install musl-tools pkg-config openssl libssl-dev -y
 
 RUN rustup target add x86_64-unknown-linux-musl
 
@@ -18,13 +16,8 @@ RUN rustup default nightly
 
 RUN CARGO_HTTP_MULTIPLEXING=false cargo build --release
 
-
-# ------------------------------------------------------------------------------
-# Final Stage
-# ------------------------------------------------------------------------------
-
 FROM alpine:latest
 
 COPY --from=cargo-build /usr/src/harvest/target/release/harvest /usr/local/bin/harvest
 
-ENTRYPOINT ["harvest"]
+ENTRYPOINT ["/usr/local/bin/harvest"]
