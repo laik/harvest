@@ -10,7 +10,7 @@ WORKDIR /usr/src/harvest
 
 COPY . .
 
-COPY config ${HOME}/.cargo/config
+COPY config ${HOME}/.cargo/config.toml
 
 RUN cargo vendor
 

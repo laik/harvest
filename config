@@ -1,9 +1,8 @@
 [source.crates-io]
-replace-with = 'ustc'
+replace-with = "vendored-sources"
 
-[source.ustc]
-registry = "https://mirrors.ustc.edu.cn/crates.io-index"
+[source.vendored-sources]
+directory = "vendor"
 
 [net]
 git-fetch-with-cli = true
-
