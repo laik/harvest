@@ -24,34 +24,35 @@ lazy_static! {
     };
 }
 
-// enum OutputEvent {
-//     Write(String, String),
-//     Wait(String, usize),
-// }
-
-// pub struct GlobalOutput {
-//     ots: Outputs,
-//     tx: Sender<OutputEvent>,
-// }
-
 pub fn registry_kafka_output(channel: &str) {
     if !channel.starts_with("kafka") {
         return;
     }
-    if let Ok(mut ots) = OUTPUTS.write() {
-        if ots.contains_output(channel) {
-            return;
+    match OUTPUTS.write() {
+        Ok(mut ots) => {
+            if ots.contains_output(channel) {
+                return;
+            }
+            ots.registry_output(channel, Output::new(KafkaOuput::new(10240)));
         }
-        ots.registry_output(channel, Output::new(KafkaOuput::new(10240)));
+        Err(e) => {
+            eprintln!("registry_kafka_output write lock failed: {:?}", e);
+        }
     }
 }
 
 pub fn output_write(channel: &str, data: &str) {
-    if let Ok(mut ots) = OUTPUTS.write() {
-        if ots.contains_output(channel) {
-            return;
+    match OUTPUTS.write() {
+        Ok(mut ots) => {
+            if !ots.contains_output(channel) {
+                eprintln!("output_write not found channel {:?}", channel);
+                return;
+            }
+            ots.output(channel, data);
         }
-        ots.output(channel, data);
+        Err(e) => {
+            eprintln!("output_write error: {:?}", e);
+        }
     }
 }
 
