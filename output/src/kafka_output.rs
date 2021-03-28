@@ -187,10 +187,10 @@ impl IOutput for KafkaOuput {
 //     #[test]
 //     fn kafka_working() {
 //         //first docker run a kafka
-//         let mut ko = KafkaOuput::new(8);
-//         for index in 0..16 {
+//         let mut ko = KafkaOuput::new(2);
+//         for index in 0..4 {
 //             let item = Item::from(format!("{:?} xx", index).as_str());
-//             if let Err(e) = ko.write(&"kafka:test1@10.200.100.200:9092", item) {
+//             if let Err(e) = ko.write(&"kafka:test3@10.200.100.200:9092", item) {
 //                 panic!("{:?}", e)
 //             }
 //         }
