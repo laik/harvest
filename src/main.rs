@@ -17,7 +17,7 @@ pub struct ServerOptions {
     docker_dir: String,
 
     // short and long flags (-h, --node) will be deduced from the field's name
-    #[structopt(short = "h", long)]
+    #[structopt(short = "h", env = "HOSTNAME", default_value = "", long)]
     host: String,
 }
 // cargo run -- --namespace default --docker_dir /var/log/container --api-server http://localhost:9999/ --host node1
