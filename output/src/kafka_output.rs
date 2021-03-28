@@ -1,6 +1,9 @@
 use super::{IOutput, Item, Result};
 use async_std::task;
-use kafka::producer::{Producer, Record, RequiredAcks};
+use kafka::{
+    client::Compression,
+    producer::{Producer, Record, RequiredAcks},
+};
 // use ringbuf::{Consumer as RConsumer, Producer as RProducer, RingBuffer};
 use crossbeam_channel::{bounded, Receiver, Sender};
 
@@ -93,50 +96,50 @@ impl KafkaOuput {
         buffer_size: usize,
         current: Arc<Count>,
     ) {
-        let _ = buffer_size;
-        // let mut index = 0;
-        // let mut now = Instant::now();
-        // let mut write_buffer = Vec::with_capacity(buffer_size);
+        let mut index = 0;
+        let mut now = Instant::now();
+        let mut write_buffer = Vec::with_capacity(buffer_size);
         loop {
-            // if cons.is_empty() || now.elapsed().as_secs() < 5 {
-            //     thread::sleep(Duration::from_millis(1));
-            //     continue;
-            // }
+            if cons.is_empty() || now.elapsed().as_secs() < 1 {
+                thread::sleep(Duration::from_millis(1));
+                continue;
+            }
 
             if let Ok(it) = cons.recv() {
-                // write_buffer.push(Record::from_key_value(
-                //     topic,
-                //     format!("{:?}", index),
-                //     it.string(),
-                // ));
+                write_buffer.push(Record::from_key_value(
+                    topic,
+                    format!("{:?}", index),
+                    it.string(),
+                ));
+                index += 1;
+                current.increase();
+            }
 
+            if index >= buffer_size || now.elapsed().as_secs() > 1 {
                 retry_fn_mut(
                     || -> bool {
-                        match kp.send(&Record::from_key_value(topic, (), it.string())) {
-                            Ok(_) => true,
-                            Err(_) => false,
+                        let start = Instant::now();
+                        match kp.send_all(&write_buffer) {
+                            Ok(_) => {
+                                println!(
+                                    "[INFO] send buffer message count:{:?} to kafka elapsed:{:?}ms",
+                                    index,
+                                    start.elapsed().as_millis()
+                                );
+                                index = 0;
+                                now = Instant::now();
+                                write_buffer.clear();
+                                true
+                            }
+                            Err(e) => {
+                                eprintln!("{:?}", e);
+                                false
+                            }
                         }
                     },
                     Duration::from_millis(1),
                 );
-
-                // index += 1;
-                current.increase();
             }
-
-            // if index >= write_buffer.capacity() || now.elapsed().as_secs() > 5 {
-            //     match kp.send_all(&write_buffer) {
-            //         Ok(_) => {
-            //             index = 0;
-            //             now = Instant::now();
-            //             write_buffer.clear();
-            //         }
-            //         Err(e) => {
-            //             eprintln!("{:?}", e);
-            //             continue;
-            //         }
-            //     }
-            // }
         }
     }
 
@@ -145,6 +148,7 @@ impl KafkaOuput {
         let mut kp = match Producer::from_hosts(cfg.broker)
             .with_ack_timeout(Duration::from_secs(1))
             .with_required_acks(RequiredAcks::One)
+            .with_compression(Compression::SNAPPY)
             .create()
         {
             Ok(it) => it,

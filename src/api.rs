@@ -17,7 +17,6 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
     };
 
     for event in event_sources.receiver().iter() {
-        println!("recv task {:?}", event);
         let request = match serde_json::from_str::<ApiServerRequest>(&event.data) {
             Ok(it) => it,
             Err(e) => {
@@ -28,6 +27,9 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
                 continue;
             }
         };
+        
+        println!("[INFO] recv task {:?}", event);
+
         if !request.has_node_events(&node_name) {
             continue;
         }
