@@ -93,39 +93,50 @@ impl KafkaOuput {
         buffer_size: usize,
         current: Arc<Count>,
     ) {
-        let mut index = 0;
-        let mut now = Instant::now();
-        let mut write_buffer = Vec::with_capacity(buffer_size);
+        let _ = buffer_size;
+        // let mut index = 0;
+        // let mut now = Instant::now();
+        // let mut write_buffer = Vec::with_capacity(buffer_size);
         loop {
-            if cons.is_empty() || now.elapsed().as_secs() < 5 {
-                thread::sleep(Duration::from_millis(1));
-                continue;
-            }
+            // if cons.is_empty() || now.elapsed().as_secs() < 5 {
+            //     thread::sleep(Duration::from_millis(1));
+            //     continue;
+            // }
 
             if let Ok(it) = cons.recv() {
-                write_buffer.push(Record::from_key_value(
-                    topic,
-                    format!("{:?}", index),
-                    it.string(),
-                ));
+                // write_buffer.push(Record::from_key_value(
+                //     topic,
+                //     format!("{:?}", index),
+                //     it.string(),
+                // ));
 
-                index += 1;
+                retry_fn_mut(
+                    || -> bool {
+                        match kp.send(&Record::from_key_value(topic, (), it.string())) {
+                            Ok(_) => true,
+                            Err(_) => false,
+                        }
+                    },
+                    Duration::from_millis(1),
+                );
+
+                // index += 1;
                 current.increase();
             }
 
-            if index >= write_buffer.capacity() || now.elapsed().as_secs() > 5 {
-                match kp.send_all(&write_buffer) {
-                    Ok(_) => {
-                        index = 0;
-                        now = Instant::now();
-                        write_buffer.clear();
-                    }
-                    Err(e) => {
-                        eprintln!("{:?}", e);
-                        continue;
-                    }
-                }
-            }
+            // if index >= write_buffer.capacity() || now.elapsed().as_secs() > 5 {
+            //     match kp.send_all(&write_buffer) {
+            //         Ok(_) => {
+            //             index = 0;
+            //             now = Instant::now();
+            //             write_buffer.clear();
+            //         }
+            //         Err(e) => {
+            //             eprintln!("{:?}", e);
+            //             continue;
+            //         }
+            //     }
+            // }
         }
     }
 
@@ -189,8 +200,8 @@ mod tests {
     fn kafka_working() {
         //first docker run a kafka
         let mut ko = KafkaOuput::new(10240);
-        for _ in 0..1024000 {
-            let item = Item::from("................................................................................................................................");
+        for index in 0..1024000 {
+            let item = Item::from(format!("{:?} xx", index).as_ref());
             if let Err(e) = ko.write(&"kafka:test3@10.200.100.200:9092", item) {
                 panic!("{:?}", e)
             }
