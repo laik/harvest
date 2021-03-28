@@ -96,7 +96,7 @@ impl KafkaOuput {
         let mut now = Instant::now();
         let mut write_buffer = Vec::with_capacity(buffer_size);
         loop {
-            if cons.is_empty() || now.elapsed().as_secs() < 1 {
+            if cons.is_empty() || now.elapsed().as_secs() < 5 {
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
@@ -112,7 +112,7 @@ impl KafkaOuput {
                 current.increase();
             }
 
-            if index >= write_buffer.capacity() || now.elapsed().as_secs() > 1 {
+            if index >= write_buffer.capacity() || now.elapsed().as_secs() > 5 {
                 match kp.send_all(&write_buffer) {
                     Ok(_) => {
                         index = 0;
