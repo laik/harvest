@@ -6,6 +6,8 @@ use std::{
     time::Duration,
 };
 
+pub static mut GLOBAL_BUFFER_SIZE: usize = 10000;
+
 use serde_json::Value;
 
 pub fn new_arc_rwlock<T>(t: T) -> Arc<RwLock<T>> {

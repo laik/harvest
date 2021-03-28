@@ -1,7 +1,8 @@
+#[warn(unused_assignments)]
 #[macro_use]
 extern crate lazy_static;
 
-use common::{Item, Result};
+use common::{Item, Result, GLOBAL_BUFFER_SIZE};
 // use crossbeam_channel::Sender;
 use kafka_output::KafkaOuput;
 
@@ -33,7 +34,12 @@ pub fn registry_kafka_output(channel: &str) {
             if ots.contains_output(channel) {
                 return;
             }
-            ots.registry_output(channel, Output::new(KafkaOuput::new(100000)));
+            let mut buffer_size: usize = 100000;
+            unsafe {
+                buffer_size = GLOBAL_BUFFER_SIZE;
+            }
+            ots.registry_output(channel, Output::new(KafkaOuput::new(buffer_size)));
+            let _ = buffer_size;
         }
         Err(e) => {
             eprintln!("registry_kafka_output write lock failed: {:?}", e);
