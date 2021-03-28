@@ -33,7 +33,7 @@ pub fn registry_kafka_output(channel: &str) {
             if ots.contains_output(channel) {
                 return;
             }
-            ots.registry_output(channel, Output::new(KafkaOuput::new(10240)));
+            ots.registry_output(channel, Output::new(KafkaOuput::new(100000)));
         }
         Err(e) => {
             eprintln!("registry_kafka_output write lock failed: {:?}", e);
