@@ -4,7 +4,7 @@ use async_std::task;
 use common::Item;
 use crossbeam_channel::{unbounded as async_channel, Sender};
 use db::Pod;
-use output::OTS;
+use output::output_write;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs::File;
@@ -83,13 +83,10 @@ impl FileReaderWriter {
         let file_size = file.stream_len().unwrap();
         let mut br = BufReader::new(file);
         let mut bf = String::new();
-        let outputs = OTS.clone();
 
         loop {
             let cur_size = br.read_line(&mut bf).unwrap();
-            if let Ok(mut ot) = outputs.lock() {
-                ot.output(&pod.output, &encode_message(&pod, bf.as_str()))
-            }
+            output_write(&pod.output, &encode_message(&pod, bf.as_str()));
             db::incr_offset(&pod.path, cur_size as i64);
             bf.clear();
 
@@ -110,12 +107,10 @@ impl FileReaderWriter {
                     }
                     _ => {
                         let incr_offset = br.read_line(&mut bf).unwrap();
-                        if let Ok(mut ot) = outputs.lock() {
-                            ot.output(
-                                &thread_pod.output,
-                                &encode_message(&thread_pod, bf.as_str()),
-                            )
-                        }
+                        output_write(
+                            &thread_pod.output,
+                            &encode_message(&thread_pod, bf.as_str()),
+                        );
                         db::incr_offset(&thread_pod.path, incr_offset as i64);
                         bf.clear();
                     }

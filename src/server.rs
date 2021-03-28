@@ -100,6 +100,8 @@ impl<'a> Harvest<'a> {
         for _ in tasks {}
 
         task_close();
+
+        output::output_wait_all();
         Ok(())
     }
 }

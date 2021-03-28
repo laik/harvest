@@ -1,6 +1,10 @@
 extern crate ajson;
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    sync::{Arc, Mutex, RwLock},
+    thread,
+    time::Duration,
+};
 
 use serde_json::Value;
 
@@ -10,6 +14,33 @@ pub fn new_arc_rwlock<T>(t: T) -> Arc<RwLock<T>> {
 
 pub fn new_arc_mutex<T>(t: T) -> Arc<Mutex<T>> {
     Arc::new(Mutex::new(t))
+}
+
+pub fn retry_fn<T>(f: T, delay: Duration)
+where
+    T: Fn() -> bool,
+{
+    loop {
+        if (f)() {
+            return;
+        } else {
+            thread::sleep(delay);
+        }
+    }
+}
+
+pub fn retry_fn_mut<T>(f: T, delay: Duration)
+where
+    T: FnMut() -> bool,
+{
+    let mut fmut = f;
+    loop {
+        if (fmut)() {
+            return;
+        } else {
+            thread::sleep(delay);
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -45,7 +76,10 @@ impl Item {
     }
 
     pub fn get_key(&self, key: &str) -> String {
-        ajson::get(&self.string(), key).unwrap().as_str().to_string()
+        ajson::get(&self.string(), key)
+            .unwrap()
+            .as_str()
+            .to_string()
     }
 
     pub fn string(&self) -> String {

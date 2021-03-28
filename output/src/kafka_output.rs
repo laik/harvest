@@ -3,8 +3,14 @@ use async_std::task;
 use kafka::producer::{Producer, Record, RequiredAcks};
 use ringbuf::{Consumer as RConsumer, Producer as RProducer, RingBuffer};
 
-use std::time::Instant;
-use std::{collections::HashMap, thread, time::Duration};
+use common::{retry_fn, retry_fn_mut};
+use std::{
+    collections::HashMap,
+    sync::{atomic::Ordering, Arc},
+    thread,
+    time::Duration,
+};
+use std::{sync::atomic::AtomicUsize, time::Instant};
 
 #[derive(Clone, Debug)]
 struct KafkaOutputConfig {
@@ -12,14 +18,42 @@ struct KafkaOutputConfig {
     topic: String,
 }
 
+struct Count(AtomicUsize);
+
+impl Count {
+    pub fn new() -> Count {
+        return Count(AtomicUsize::new(0));
+    }
+
+    pub fn increase(&self) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn value(&self) -> usize {
+        self.0.load(Ordering::SeqCst) as usize
+    }
+}
+
+impl Clone for Count {
+    fn clone(&self) -> Self {
+        Count(AtomicUsize::new(self.0.load(Ordering::SeqCst)))
+    }
+}
+
 pub(crate) struct KafkaOuput {
     channels: HashMap<String, RProducer<Item>>,
+    buffer_size: usize,
+    count: Count,
+    current: Arc<Count>,
 }
 
 impl KafkaOuput {
-    pub fn new() -> KafkaOuput {
+    pub fn new(buffer_size: usize) -> KafkaOuput {
         Self {
             channels: HashMap::new(),
+            buffer_size: buffer_size,
+            count: Count::new(),
+            current: Arc::new(Count::new()),
         }
     }
 
@@ -39,38 +73,44 @@ impl KafkaOuput {
 
     fn write_in(&mut self, channel: &str, item: &Item) {
         let prod = self.channels.get_mut(channel).unwrap();
-        loop {
+        let write = || -> bool {
             if prod.is_full() {
-                thread::sleep(Duration::from_millis(1));
-                continue;
+                return false;
             }
-            prod.push(item.clone()).unwrap();
-            return;
-        }
+            match prod.push(item.clone()) {
+                Ok(_) => true,
+                Err(_) => false,
+            }
+        };
+        retry_fn_mut(write, Duration::from_millis(1))
     }
 
-    async fn write_out(topic: &str, cons: &mut RConsumer<Item>, kp: &mut Producer) {
-        let count = 10240;
+    async fn write_out(
+        topic: &str,
+        cons: &mut RConsumer<Item>,
+        kp: &mut Producer,
+        buffer_size: usize,
+        current: Arc<Count>,
+    ) {
         let mut index = 0;
         let mut now = Instant::now();
-        let mut write_buffer = Vec::with_capacity(count);
+        let mut write_buffer = Vec::with_capacity(buffer_size);
         loop {
-            if cons.is_empty() {
+            if cons.is_empty() || now.elapsed().as_secs() < 1 {
                 thread::sleep(Duration::from_millis(1));
                 continue;
             }
-            let content = match cons.pop() {
-                Some(it) => it.string(),
-                None => {
-                    continue;
-                }
-            };
-            write_buffer.push(Record::from_key_value(
-                topic,
-                format!("{:?}", index),
-                content,
-            ));
-            index += 1;
+
+            if let Some(it) = cons.pop() {
+                write_buffer.push(Record::from_key_value(
+                    topic,
+                    format!("{:?}", index),
+                    it.string(),
+                ));
+
+                index += 1;
+                current.increase();
+            }
 
             if index >= write_buffer.capacity() || now.elapsed().as_secs() > 1 {
                 match kp.send_all(&write_buffer) {
@@ -99,13 +139,14 @@ impl KafkaOuput {
             Err(e) => return Err(Box::new(e)),
         };
 
-        let ring_buff = RingBuffer::new(10240);
+        let buffer_size = self.buffer_size.clone();
+        let ring_buff = RingBuffer::new(buffer_size);
         let (p, mut c) = ring_buff.split();
-
         let topic = cfg.topic.clone();
+        let current_count = Arc::clone(&self.current);
 
         task::spawn(async move {
-            Self::write_out(&topic, &mut c, &mut kp).await;
+            Self::write_out(&topic, &mut c, &mut kp, buffer_size, current_count).await;
         });
 
         self.channels.insert(channel.to_string(), p);
@@ -124,7 +165,16 @@ impl IOutput for KafkaOuput {
         if !self.channels.contains_key(channel) {
             self.not_exist_create(channel)?;
         }
+        self.count.increase();
         self.write_to_channel_queue(channel, item)
+    }
+
+    fn wait(&self, _: usize) -> bool {
+        retry_fn(
+            || -> bool { self.current.value() >= self.count.value() },
+            Duration::from_millis(1),
+        );
+        true
     }
 }
 
@@ -133,18 +183,17 @@ impl IOutput for KafkaOuput {
 //     use super::KafkaOuput;
 //     use crate::IOutput;
 //     use common::Item;
-//     use std::{thread, time::Duration};
 
 //     #[test]
 //     fn kafka_working() {
 //         //first docker run a kafka
-//         let mut ko = KafkaOuput::new();
-//         for index in 0..10000 {
+//         let mut ko = KafkaOuput::new(8);
+//         for index in 0..16 {
 //             let item = Item::from(format!("{:?} xx", index).as_str());
-//             if let Err(e) = ko.write(&"kafka:test@10.200.100.200:9092", item) {
+//             if let Err(e) = ko.write(&"kafka:test1@10.200.100.200:9092", item) {
 //                 panic!("{:?}", e)
 //             }
 //         }
-//         thread::sleep(Duration::from_secs(5));
+//         ko.wait(0);
 //     }
 // }

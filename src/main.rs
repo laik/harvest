@@ -5,11 +5,11 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 pub struct ServerOptions {
     // short and long flags (-n, --namespace) will be deduced from the field's name
-    #[structopt(short, long)]
+    #[structopt(short, env = "NAMESPACE", default_value = "", long)]
     namespace: String,
 
     // // short and long flags (-s, --api-server) will be deduced from the field's name
-    #[structopt(short = "s", long)]
+    #[structopt(short = "s", env = "API_SERVER", default_value = "", long)]
     api_server: String,
 
     // short and long flags (-d, --docker-dir) will be deduced from the field's name

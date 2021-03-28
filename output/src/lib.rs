@@ -1,33 +1,65 @@
-use common::{Item, Result};
-use kafka_output::KafkaOuput;
-use once_cell::sync::Lazy;
+#[macro_use]
+extern crate lazy_static;
 
-use std::collections::HashMap;
+use common::{Item, Result};
+// use crossbeam_channel::Sender;
+use kafka_output::KafkaOuput;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::{collections::HashMap, sync::RwLock};
 
 mod kafka_output;
 
 pub use OUTPUTS as OTS;
 
-pub static OUTPUTS: Lazy<Arc<Mutex<Outputs>>> = Lazy::new(|| {
-    let outputs = Arc::new(Mutex::new(Outputs::new()));
-    if let Ok(mut ots) = outputs.lock() {
-        ots.registry_output("fake_output", Output::new(FakeOutput));
-        ots.registry_output("counter_output", Output::new(Counter(AtomicUsize::new(0))));
-    }
-    outputs
-});
+lazy_static! {
+    pub static ref OUTPUTS: Arc<RwLock<Outputs>> = {
+        let outputs = Arc::new(RwLock::new(Outputs::new()));
+        if let Ok(mut ots) = outputs.write() {
+            ots.registry_output("fake_output", Output::new(FakeOutput));
+            ots.registry_output("counter_output", Output::new(Counter(AtomicUsize::new(0))));
+        }
+        outputs
+    };
+}
 
-pub fn registry_output(channel: &str) {
+// enum OutputEvent {
+//     Write(String, String),
+//     Wait(String, usize),
+// }
+
+// pub struct GlobalOutput {
+//     ots: Outputs,
+//     tx: Sender<OutputEvent>,
+// }
+
+pub fn registry_kafka_output(channel: &str) {
     if !channel.starts_with("kafka") {
         return;
     }
-    if let Ok(mut ots) = OUTPUTS.lock() {
+    if let Ok(mut ots) = OUTPUTS.write() {
         if ots.contains_output(channel) {
             return;
         }
-        ots.registry_output(channel, Output::new(KafkaOuput::new()));
+        ots.registry_output(channel, Output::new(KafkaOuput::new(10240)));
+    }
+}
+
+pub fn output_write(channel: &str, data: &str) {
+    if let Ok(mut ots) = OUTPUTS.write() {
+        if ots.contains_output(channel) {
+            return;
+        }
+        ots.output(channel, data);
+    }
+}
+
+pub fn output_wait_all() {
+    if let Ok(ots) = OUTPUTS.write() {
+        for (_, o) in ots.output_listener.iter() {
+            o.wait(0);
+        }
     }
 }
 
@@ -76,10 +108,23 @@ impl Outputs {
             _ => {}
         }
     }
+
+    pub fn wait_done(&self, channel: &str, cnt: usize) -> bool {
+        if !self.output_listener.contains_key(channel) {
+            return true;
+        }
+
+        if let Some(o) = self.output_listener.get(channel) {
+            o.wait(cnt)
+        } else {
+            false
+        }
+    }
 }
 
 pub trait IOutput: Send + Sync + 'static {
     fn write(&mut self, channel: &str, item: Item) -> Result<()>;
+    fn wait(&self, cnt: usize) -> bool;
 }
 
 #[derive(Debug)]
@@ -96,9 +141,12 @@ impl<T: IOutput> Output<T> {
 }
 
 impl<T: IOutput> IOutput for Output<T> {
-    // delegate write IOutput.write
     fn write(&mut self, channel: &str, item: Item) -> Result<()> {
         self.o.write(channel, item)
+    }
+
+    fn wait(&self, cnt: usize) -> bool {
+        self.o.wait(cnt)
     }
 }
 
@@ -127,6 +175,10 @@ impl IOutput for FakeOutput {
         println!("FakeOutput content: {:?}", item.string());
         Ok(())
     }
+
+    fn wait(&self, _: usize) -> bool {
+        return true;
+    }
 }
 
 pub struct Counter(AtomicUsize);
@@ -137,6 +189,14 @@ impl IOutput for Counter {
             println!("Counter {:?}", self.0.load(Ordering::Relaxed));
         }
         Ok(())
+    }
+
+    fn wait(&self, cnt: usize) -> bool {
+        if self.0.load(Ordering::Relaxed) == cnt {
+            println!("Wait Counter {:?}", cnt);
+            return true;
+        }
+        false
     }
 }
 
@@ -180,21 +240,24 @@ mod tests {
     }
 
     #[test]
+    fn it_works_with_outputs_counter() {}
+
+    #[test]
     fn it_static_outputs() {
-        if let Ok(mut ots) = OUTPUTS.try_lock() {
+        if let Ok(mut ots) = OUTPUTS.write() {
             ots.output("fake_output", "1")
         }
         let mut j = vec![];
         let o1 = OUTPUTS.clone();
         j.push(thread::spawn(move || {
-            if let Ok(mut ots) = o1.try_lock() {
+            if let Ok(mut ots) = o1.write() {
                 ots.output("fake_output", "2")
             }
         }));
 
         let o2 = OUTPUTS.clone();
         j.push(thread::spawn(move || {
-            if let Ok(mut ots) = o2.try_lock() {
+            if let Ok(mut ots) = o2.write() {
                 ots.output("fake_output", "3")
             }
         }));

@@ -32,7 +32,7 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
             continue;
         }
 
-        output::registry_output(request.output);
+        output::registry_kafka_output(request.output);
 
         for task in request.to_pod_tasks() {
             if request.op == RUN {
