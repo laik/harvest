@@ -1,7 +1,8 @@
 use super::{IOutput, Item, Result};
 use async_std::task;
 use kafka::producer::{Producer, Record, RequiredAcks};
-use ringbuf::{Consumer as RConsumer, Producer as RProducer, RingBuffer};
+// use ringbuf::{Consumer as RConsumer, Producer as RProducer, RingBuffer};
+use crossbeam_channel::{bounded, Receiver, Sender};
 
 use common::{retry_fn, retry_fn_mut};
 use std::{
@@ -41,7 +42,7 @@ impl Clone for Count {
 }
 
 pub(crate) struct KafkaOuput {
-    channels: HashMap<String, RProducer<Item>>,
+    channels: HashMap<String, Sender<Item>>,
     buffer_size: usize,
     count: Count,
     current: Arc<Count>,
@@ -77,7 +78,7 @@ impl KafkaOuput {
             if prod.is_full() {
                 return false;
             }
-            match prod.push(item.clone()) {
+            match prod.send(item.clone()) {
                 Ok(_) => true,
                 Err(_) => false,
             }
@@ -87,7 +88,7 @@ impl KafkaOuput {
 
     async fn write_out(
         topic: &str,
-        cons: &mut RConsumer<Item>,
+        cons: Receiver<Item>,
         kp: &mut Producer,
         buffer_size: usize,
         current: Arc<Count>,
@@ -101,7 +102,7 @@ impl KafkaOuput {
                 continue;
             }
 
-            if let Some(it) = cons.pop() {
+            if let Ok(it) = cons.recv() {
                 write_buffer.push(Record::from_key_value(
                     topic,
                     format!("{:?}", index),
@@ -140,16 +141,16 @@ impl KafkaOuput {
         };
 
         let buffer_size = self.buffer_size.clone();
-        let ring_buff = RingBuffer::new(buffer_size);
-        let (p, mut c) = ring_buff.split();
+        let (s, r) = bounded(buffer_size);
+
         let topic = cfg.topic.clone();
         let current_count = Arc::clone(&self.current);
 
         task::spawn(async move {
-            Self::write_out(&topic, &mut c, &mut kp, buffer_size, current_count).await;
+            Self::write_out(&topic, r, &mut kp, buffer_size, current_count).await;
         });
 
-        self.channels.insert(channel.to_string(), p);
+        self.channels.insert(channel.to_string(), s);
 
         Ok(())
     }
@@ -178,22 +179,22 @@ impl IOutput for KafkaOuput {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::KafkaOuput;
-//     use crate::IOutput;
-//     use common::Item;
+#[cfg(test)]
+mod tests {
+    use super::KafkaOuput;
+    use crate::IOutput;
+    use common::Item;
 
-//     #[test]
-//     fn kafka_working() {
-//         //first docker run a kafka
-//         let mut ko = KafkaOuput::new(2);
-//         for index in 0..4 {
-//             let item = Item::from(format!("{:?} xx", index).as_str());
-//             if let Err(e) = ko.write(&"kafka:test3@10.200.100.200:9092", item) {
-//                 panic!("{:?}", e)
-//             }
-//         }
-//         ko.wait(0);
-//     }
-// }
+    #[test]
+    fn kafka_working() {
+        //first docker run a kafka
+        let mut ko = KafkaOuput::new(10240);
+        for _ in 0..1024000 {
+            let item = Item::from("................................................................................................................................");
+            if let Err(e) = ko.write(&"kafka:test3@10.200.100.200:9092", item) {
+                panic!("{:?}", e)
+            }
+        }
+        ko.wait(0);
+    }
+}
