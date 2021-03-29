@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use super::{run_task, stop_task, tasks_json, Task};
+use common::retry_fn;
 use rocket::get;
 use rocket_contrib::json::JsonValue;
 use serde::{Deserialize, Serialize};
@@ -8,44 +11,50 @@ const RUN: &'static str = "run";
 const STOP: &'static str = "stop";
 
 pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
-    let event_sources = match EventSource::new(addr) {
-        Ok(it) => it,
-        Err(e) => {
-            eprintln!("{:?}", e);
-            return;
-        }
-    };
+    retry_fn(
+        || -> bool {
+            let event_sources = match EventSource::new(addr) {
+                Ok(it) => it,
+                Err(e) => {
+                    eprintln!("{:?}", e);
+                    return false;
+                }
+            };
 
-    for event in event_sources.receiver().iter() {
-        let request = match serde_json::from_str::<ApiServerRequest>(&event.data) {
-            Ok(it) => it,
-            Err(e) => {
-                eprintln!(
-                    "recv event parse json error or connect to api server error: {:?} \n data: {:?}",
-                    e, &event.data
-                );
-                continue;
+            for event in event_sources.receiver().iter() {
+                let request = match serde_json::from_str::<ApiServerRequest>(&event.data) {
+                    Ok(it) => it,
+                    Err(e) => {
+                        eprintln!(
+                        "recv event parse json error or connect to api server error: {:?} \n data: {:?}",
+                        e, &event.data
+                    );
+                        continue;
+                    }
+                };
+
+                println!("[INFO] recv task {:?}", event);
+
+                if !request.has_node_events(&node_name) {
+                    continue;
+                }
+
+                output::registry_kafka_output(request.output);
+
+                for task in request.to_pod_tasks() {
+                    if request.op == RUN {
+                        run_task(&task);
+                    } else if request.op == STOP {
+                        stop_task(&task);
+                    } else {
+                        println!("recv api server unknown event: {:?}", request)
+                    }
+                }
             }
-        };
-        
-        println!("[INFO] recv task {:?}", event);
-
-        if !request.has_node_events(&node_name) {
-            continue;
-        }
-
-        output::registry_kafka_output(request.output);
-
-        for task in request.to_pod_tasks() {
-            if request.op == RUN {
-                run_task(&task);
-            } else if request.op == STOP {
-                stop_task(&task);
-            } else {
-                println!("recv api server unknown event: {:?}", request)
-            }
-        }
-    }
+            false
+        },
+        Duration::from_secs(1),
+    )
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

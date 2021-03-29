@@ -1,4 +1,4 @@
-use common::{GLOBAL_BUFFER_SIZE, Result};
+use common::{Result, GLOBAL_BUFFER_SIZE};
 use harvest::Harvest;
 use structopt::StructOpt;
 
@@ -28,7 +28,7 @@ pub struct ServerOptions {
 
 fn main() -> Result<()> {
     let opt = ServerOptions::from_args();
-    println!("recv args {:?}", opt);
+    println!("start args {:?}", opt);
     unsafe {
         GLOBAL_BUFFER_SIZE = opt.buffer_size;
     }
