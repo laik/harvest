@@ -119,8 +119,17 @@ pub(crate) fn query_tasks() -> JsonValue {
 }
 
 #[get("/pods")]
-pub(crate) fn query_pod() -> JsonValue {
+pub(crate) fn query_all_pod() -> JsonValue {
     json!(db::all_to_json())
+}
+
+#[get("/pod/<name>")]
+pub(crate) fn query_pod(name: String) -> JsonValue {
+    if let Some(pod) = db::get_pod(&name) {
+        return json!(pod);
+    } else {
+        json!({})
+    }
 }
 
 #[catch(404)]

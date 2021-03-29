@@ -1,9 +1,7 @@
-#[warn(unused_assignments)]
 #[macro_use]
 extern crate lazy_static;
 
 use common::{Item, Result, GLOBAL_BUFFER_SIZE};
-// use crossbeam_channel::Sender;
 use kafka_output::KafkaOuput;
 
 use std::sync::atomic::{AtomicUsize, Ordering};

@@ -93,6 +93,20 @@ pub fn get(uuid: &str) -> Option<Pod> {
     }
 }
 
+pub fn get_pod(pod: &str) -> Option<Pod> {
+    if let Some((_, pod)) = MEM
+        .pods
+        .read()
+        .unwrap()
+        .iter()
+        .find(|(_, v)| v.pod_name == pod)
+    {
+        return Some(pod.clone());
+    } else {
+        None
+    }
+}
+
 pub fn get_slice_with_ns_pod(ns: &str, pod: &str) -> Vec<(String, Pod)> {
     MEM.pods
         .read()

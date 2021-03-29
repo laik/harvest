@@ -88,7 +88,7 @@ impl<'a> Harvest<'a> {
                 .unwrap();
 
             rocket::custom(cfg)
-                .mount("/", routes![query_pod, query_tasks])
+                .mount("/", routes![query_pod, query_tasks, query_all_pod])
                 .register(catchers![not_found])
                 .launch();
         }));
