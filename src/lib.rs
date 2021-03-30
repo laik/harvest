@@ -226,12 +226,12 @@ lazy_static! {
     };
 }
 
-pub(crate) fn run_task(task: &Task) {
-    TASKS.tx.send(TaskMessage::Run(task.clone())).unwrap();
+pub(crate) fn run_task(task: Task) {
+    TASKS.tx.send(TaskMessage::Run(task)).unwrap();
 }
 
-pub(crate) fn stop_task(task: &Task) {
-    TASKS.tx.send(TaskMessage::Stop(task.clone())).unwrap();
+pub(crate) fn stop_task(task: Task) {
+    TASKS.tx.send(TaskMessage::Stop(task)).unwrap();
 }
 
 pub(crate) fn task_close() {

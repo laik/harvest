@@ -1,6 +1,5 @@
 use super::*;
 use async_std::task;
-use common::new_arc_mutex;
 use file::FileReaderWriter;
 use rocket::config::{Config, Environment};
 use rocket::routes;
@@ -34,7 +33,7 @@ impl<'a> Harvest<'a> {
             String::from(self.docker_dir),
         ));
 
-        let frw = new_arc_mutex(FileReaderWriter::new(0));
+        let frw = FileReaderWriter::new(1);
 
         if let Ok(mut scan) = scanner.write() {
             // registry scanner event handle
@@ -45,6 +44,7 @@ impl<'a> Harvest<'a> {
 
         // registry db open/close events
         db::registry_open_event_listener(DBOpenEvent(frw.clone()));
+
         db::registry_close_event_listener(DBCloseEvent(frw.clone()));
 
         // registry task run/stop event handle

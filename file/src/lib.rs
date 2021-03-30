@@ -1,126 +1,239 @@
 #![feature(seek_stream_len)]
 extern crate crossbeam_channel;
 use async_std::task;
-use common::Item;
-use crossbeam_channel::{unbounded as async_channel, Sender};
+use common::{Item, Result};
+use crossbeam_channel::{unbounded, Sender};
 use db::Pod;
 use output::output_write;
 use serde_json::json;
-use std::collections::HashMap;
-use std::fs::File;
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
+use std::{
+    collections::hash_map::DefaultHasher,
+    fs::File,
+    hash::{Hash, Hasher},
+};
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
 
 pub enum SendFileEvent {
     Close,
     Other,
 }
 
+#[derive(Clone)]
 pub struct FileReaderWriter {
-    file_handles: HashMap<String, Sender<SendFileEvent>>,
+    file_handles: Arc<Vec<RwLock<HashMap<String, Sender<SendFileEvent>>>>>,
 }
 
 impl FileReaderWriter {
     pub fn new(num_workers: usize) -> Self {
-        let _ = num_workers;
+        let mut file_handles: Vec<RwLock<HashMap<String, Sender<SendFileEvent>>>> =
+            Vec::with_capacity(num_workers);
+        for _i in 0..num_workers {
+            file_handles.push(RwLock::new(HashMap::new()))
+        }
         Self {
-            file_handles: HashMap::new(),
+            file_handles: Arc::new(file_handles),
         }
     }
 
-    pub fn close_event(&mut self, pod: &Pod) {
-        if let Some(tx) = self.file_handles.get(&pod.path) {
-            if let Err(e) = tx.send(SendFileEvent::Close) {
-                eprintln!("frw send close to {:?} handle error: {:?}", &pod.path, e);
+    fn hash(&self, k: &str) -> usize {
+        let mut hasher = DefaultHasher::new();
+        k.to_owned().hash(&mut hasher);
+        hasher.finish() as usize
+    }
+
+    fn remove(&self, k: &str) {
+        let cache = self.file_handles.clone();
+        let writer = cache[(self.hash(k) % cache.len()) as usize].write();
+        match writer {
+            Ok(mut w) => {
+                w.remove(k);
             }
-            self.file_handles.remove(&pod.path);
+            Err(e) => {
+                eprintln!("cache remove failed: {:?}", e)
+            }
         }
     }
 
-    pub fn remove_event(&mut self, pod: &Pod) {
-        if let Some(tx) = self.file_handles.get(&pod.path) {
-            if let Err(e) = tx.send(SendFileEvent::Close) {
-                eprintln!("frw send remove to {:?} handle error: {:?}", &pod.path, e);
+    fn get(&self, k: &str) -> Option<Sender<SendFileEvent>> {
+        let cache = self.file_handles.clone();
+        let reader = cache[(self.hash(k) % cache.len()) as usize].write();
+        match reader {
+            Ok(r) => match r.get(k) {
+                Some(v) => Some(v.clone()),
+                None => None,
+            },
+            Err(e) => {
+                eprintln!("cache get key {:?} failed: {:?}", k, e);
+                None
             }
-            self.file_handles.remove(&pod.path);
+        }
+    }
+
+    fn contains_key(&self, k: &str) -> bool {
+        let cache = self.file_handles.clone();
+        let reader = cache[(self.hash(k) % cache.len()) as usize].write();
+        match reader {
+            Ok(r) => r.contains_key(k),
+            Err(e) => {
+                eprintln!("cache get key {:?} failed: {:?}", k, e);
+                false
+            }
+        }
+    }
+
+    fn registry(&self, k: &str, v: Sender<SendFileEvent>) {
+        let writer = self.file_handles[(self.hash(k) % self.file_handles.len()) as usize].write();
+        match writer {
+            Ok(mut w) => {
+                w.insert(k.to_string(), v);
+            }
+            Err(e) => {
+                eprintln!("cache insert failed: {:?}", e)
+            }
+        }
+    }
+
+    pub fn close_event(&self, path: &str) {
+        if let Some(tx) = self.get(path) {
+            if let Err(e) = tx.send(SendFileEvent::Close) {
+                eprintln!("frw send close to {:?} handle error: {:?}", path, e);
+            }
+            self.remove(path);
+        }
+    }
+
+    pub fn remove_event(&self, path: &str) {
+        if let Some(tx) = self.get(path) {
+            if let Err(e) = tx.send(SendFileEvent::Close) {
+                eprintln!("frw send remove to {:?} handle error: {:?}", path, e);
+            }
+            self.remove(path);
         };
 
-        db::delete(&pod.path);
+        db::delete(path);
     }
 
-    pub fn open_event(&mut self, pod: &mut Pod) {
-        if self.file_handles.contains_key(&pod.path) {
-            return;
+    fn send_write_event(&self, path: &str) -> Result<()> {
+        if let Some(handle) = self.get(path) {
+            handle.send(SendFileEvent::Other)?;
+        } else {
+            println!(
+                "[INFO] not found path: {:?} on handles {:?}",
+                path, self.file_handles
+            );
         }
-        self.open(pod);
+        Ok(())
     }
 
-    pub fn write_event(&mut self, pod: &mut Pod) {
-        let handle = match self.file_handles.get(&pod.path) {
-            Some(it) => it,
-            _ => {
-                return;
-            }
-        };
-        if let Err(e) = handle.send(SendFileEvent::Other) {
-            eprintln!("frw send write event error: {}, path: {}", e, &pod.path)
+    pub fn write_event(&self, path: &str) {
+        println!("recv write event {:?}", path);
+        if let Err(e) = self.send_write_event(path) {
+            eprintln!("frw send write event error: {:?}", e)
         }
     }
 
-    fn open(&mut self, pod: &mut Pod) {
-        let mut offset = pod.offset;
-        let mut file = match File::open(&pod.path) {
+    fn file_size(path: &str) -> i64 {
+        let mut file = match File::open(&path) {
             Ok(file) => file,
             Err(e) => {
-                eprintln!("frw open file {:?} error: {:?}", pod.path, e);
-                return;
+                eprintln!("frw open file {:?} error: {:?}", path, e);
+                return -1;
             }
         };
+        file.stream_len().unwrap() as i64
+    }
+
+    fn open_seek_bufr(path: &str, offset: i64) -> Result<BufReader<File>> {
+        let mut file = match File::open(path) {
+            Ok(file) => file,
+            Err(e) => {
+                return Err(Box::new(e));
+            }
+        };
+
         if let Err(e) = file.seek(SeekFrom::Current(offset)) {
-            eprintln!("frw open event seek failed, error: {}", e);
-            return;
+            return Err(Box::new(e));
         }
 
-        let file_size = file.stream_len().unwrap();
-        let mut br = BufReader::new(file);
-        let mut bf = String::new();
+        Ok(BufReader::new(file))
+    }
 
-        loop {
-            let cur_size = br.read_line(&mut bf).unwrap();
+    async fn read_fn(
+        br: &mut BufReader<File>,
+        bf: &mut String,
+        offset: &mut i64,
+        is_until_align_offset: &mut bool,
+        pod: &Pod,
+    ) {
+        while let Ok(line_size) = br.read_line(bf) {
+            if line_size == 0 {
+                break;
+            }
             output_write(&pod.output, &encode_message(&pod, bf.as_str()));
-            db::incr_offset(&pod.path, cur_size as i64);
+            db::incr_offset(&pod.path, line_size as i64);
             bf.clear();
 
-            offset += cur_size as i64;
-            if offset >= file_size as i64 {
+            *offset += line_size as i64;
+
+            if !(*is_until_align_offset) {
+                if offset >= &mut (Self::file_size(&pod.path) as i64) {
+                    (*is_until_align_offset) = true;
+                }
+            }
+            // println!(
+            //     "is_until_align_offset {:?}, offset {:?}, filesize {:?}",
+            //     is_until_align_offset,
+            //     offset,
+            //     Self::file_size(&pod.path) as i64
+            // );
+            if *is_until_align_offset {
                 break;
             }
         }
+    }
 
-        pod.offset = offset;
-        let thread_pod = pod.clone();
-        let (tx, rx) = async_channel::<SendFileEvent>();
+    pub fn open_event(&self, pod: &mut Pod) {
+        if self.contains_key(&pod.path) {
+            return;
+        }
+
+        let pod_clone = pod.clone();
+        let mut offset = pod.offset;
+
+        let (tx, rx) = unbounded::<SendFileEvent>();
         task::spawn(async move {
+            let mut bf = String::new();
+            let mut is_until_align_offset = false;
+
+            let mut br = match Self::open_seek_bufr(&pod_clone.path, pod_clone.offset) {
+                Ok(it) => it,
+                Err(e) => {
+                    eprintln!("{:?}", e);
+                    return;
+                }
+            };
             while let Ok(evt) = rx.recv() {
-                match evt {
-                    SendFileEvent::Close => {
-                        break;
-                    }
-                    _ => {
-                        let incr_offset = br.read_line(&mut bf).unwrap();
-                        output_write(
-                            &thread_pod.output,
-                            &encode_message(&thread_pod, bf.as_str()),
-                        );
-                        db::incr_offset(&thread_pod.path, incr_offset as i64);
-                        bf.clear();
-                    }
-                };
+                if let SendFileEvent::Close = evt {
+                    break;
+                }
+                Self::read_fn(
+                    &mut br,
+                    &mut bf,
+                    &mut offset,
+                    &mut is_until_align_offset,
+                    &pod_clone,
+                )
+                .await
             }
         });
 
-        self.file_handles.insert(pod.path.to_string(), tx);
+        self.registry(&pod.path, tx);
 
-        db::update(&pod.set_state_run())
+        db::update(&pod.set_state_run());
     }
 }
 
@@ -165,7 +278,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let mut input = FileReaderWriter::new(10);
+        let input = FileReaderWriter::new(10);
         input.open_event(&mut Pod::default());
     }
 }

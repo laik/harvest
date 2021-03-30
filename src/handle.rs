@@ -3,84 +3,51 @@ use db::GetPod;
 use event::Listener;
 use file::FileReaderWriter;
 use scan::GetPathEventInfo;
-use std::sync::{Arc, Mutex};
 
-pub(crate) struct DBOpenEvent(pub Arc<Mutex<FileReaderWriter>>);
+pub(crate) struct DBOpenEvent(pub FileReaderWriter);
 impl<T> Listener<T> for DBOpenEvent
 where
     T: Clone + GetPod,
 {
     fn handle(&self, t: T) {
-        let mut pod = match t.get() {
-            Some(pod) => pod.clone(),
-            _ => return,
-        };
-        match self.0.lock() {
-            Ok(mut frw) => frw.open_event(&mut pod),
-            Err(e) => {
-                eprintln!("{:?}", e);
-            }
-        }
+        self.0.open_event(&mut t.get().unwrap().clone())
     }
 }
 
-pub(crate) struct DBCloseEvent(pub Arc<Mutex<FileReaderWriter>>);
+pub(crate) struct DBCloseEvent(pub FileReaderWriter);
 impl<T> Listener<T> for DBCloseEvent
 where
     T: Clone + GetPod,
 {
     fn handle(&self, t: T) {
-        let mut pod = match t.get() {
-            Some(pod) => pod.clone(),
-            _ => return,
-        };
-        match self.0.lock() {
-            Ok(mut frw) => frw.remove_event(&mut pod),
-            Err(e) => {
-                eprintln!("{:?}", e);
-            }
-        }
+        self.0.remove_event(&t.get().unwrap().path)
     }
 }
 
-pub(crate) struct ScannerCreateEvent(pub Arc<Mutex<FileReaderWriter>>);
+pub(crate) struct ScannerCreateEvent(pub FileReaderWriter);
 impl<T> Listener<T> for ScannerCreateEvent
 where
     T: Clone + GetPathEventInfo,
 {
     fn handle(&self, t: T) {
-        let mut pod = t.get().to_pod();
+        let pod = t.get().to_pod();
         db::insert(&pod);
-
-        match get_pod_task(&pod.pod_name) {
-            Some(t) => {
-                if !t.pod.is_upload() {
-                    return;
-                }
-                match self.0.lock() {
-                    Ok(mut frw) => frw.write_event(&mut pod),
-                    Err(e) => {
-                        eprintln!("{:?}", e);
-                    }
-                }
+        if let Some(t) = get_pod_task(&pod.pod_name) {
+            if !t.pod.is_upload() {
+                return;
             }
-            None => {}
+            self.0.write_event(&pod.path)
         }
     }
 }
 
-pub(crate) struct ScannerWriteEvent(pub Arc<Mutex<FileReaderWriter>>);
+pub(crate) struct ScannerWriteEvent(pub FileReaderWriter);
 impl<T> Listener<T> for ScannerWriteEvent
 where
     T: Clone + GetPathEventInfo,
 {
     fn handle(&self, t: T) {
-        match self.0.lock() {
-            Ok(mut frw) => frw.write_event(&mut t.get().to_pod()),
-            Err(e) => {
-                eprintln!("{:?}", e);
-            }
-        }
+        self.0.write_event(&t.get().to_pod().path)
     }
 }
 
@@ -96,36 +63,23 @@ where
     }
 }
 
-pub(crate) struct TaskRunEvent(pub Arc<Mutex<FileReaderWriter>>);
+pub(crate) struct TaskRunEvent(pub FileReaderWriter);
 impl<T> Listener<T> for TaskRunEvent
 where
     T: Clone + GetTask,
 {
     fn handle(&self, t: T) {
-        let task = t.get();
-        let mut pod = task.pod.clone();
-        match self.0.lock() {
-            Ok(mut frw) => frw.open_event(&mut pod),
-            Err(e) => {
-                eprintln!("{:?}", e);
-            }
-        }
+        let mut pod = t.get().pod.clone();
+        self.0.open_event(&mut pod);
     }
 }
 
-pub(crate) struct TaskStopEvent(pub Arc<Mutex<FileReaderWriter>>);
+pub(crate) struct TaskStopEvent(pub FileReaderWriter);
 impl<T> Listener<T> for TaskStopEvent
 where
     T: Clone + GetTask,
 {
     fn handle(&self, t: T) {
-        let task = t.get();
-        let mut pod = task.pod.clone();
-        match self.0.lock() {
-            Ok(mut frw) => frw.close_event(&mut pod),
-            Err(e) => {
-                eprintln!("{:?}", e);
-            }
-        }
+        self.0.close_event(&t.get().pod.path)
     }
 }

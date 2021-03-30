@@ -37,7 +37,6 @@ pub fn registry_kafka_output(channel: &str) {
                 buffer_size = GLOBAL_BUFFER_SIZE;
             }
             ots.registry_output(channel, Output::new(KafkaOuput::new(buffer_size)));
-            // println!("[INFO] starts_with buffer_size: {:?}", buffer_size);
         }
         Err(e) => {
             eprintln!("registry_kafka_output write lock failed: {:?}", e);
