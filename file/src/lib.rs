@@ -117,11 +117,6 @@ impl FileReaderWriter {
     fn send_write_event(&self, path: &str) -> Result<()> {
         if let Some(handle) = self.get(path) {
             handle.send(SendFileEvent::Other)?;
-        } else {
-            println!(
-                "[INFO] not found path: {:?} on handles {:?}",
-                path, self.file_handles
-            );
         }
         Ok(())
     }
