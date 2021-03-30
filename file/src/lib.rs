@@ -225,6 +225,9 @@ impl FileReaderWriter {
         self.registry(&pod.path, tx);
 
         db::update(&pod.set_state_run());
+        if let Err(e) = self.send_write_event(&pod.path) {
+            eprintln!("frw send first event error: {:?}", e);
+        }
     }
 }
 
