@@ -127,7 +127,6 @@ impl FileReaderWriter {
     }
 
     pub fn write_event(&self, path: &str) {
-        println!("recv write event {:?}", path);
         if let Err(e) = self.send_write_event(path) {
             eprintln!("frw send write event error: {:?}", e)
         }
