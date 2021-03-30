@@ -35,8 +35,8 @@ impl<'a> Harvest<'a> {
 
         let frw = FileReaderWriter::new(1);
 
+        // registry scanner event handle
         if let Ok(mut scan) = scanner.write() {
-            // registry scanner event handle
             scan.append_create_event_handle(ScannerCreateEvent(frw.clone()));
             scan.append_write_event_handle(ScannerWriteEvent(frw.clone()));
             scan.append_close_event_handle(ScannerCloseEvent());
@@ -44,7 +44,6 @@ impl<'a> Harvest<'a> {
 
         // registry db open/close events
         db::registry_open_event_listener(DBOpenEvent(frw.clone()));
-
         db::registry_close_event_listener(DBCloseEvent(frw.clone()));
 
         // registry task run/stop event handle
@@ -76,7 +75,7 @@ impl<'a> Harvest<'a> {
             }
 
             if let Err(e) = scan.watch_start() {
-                panic!("{:?}", e);
+                eprintln!("{:?}", e);
             }
         }));
 
@@ -93,12 +92,8 @@ impl<'a> Harvest<'a> {
                 .launch();
         }));
 
-        let api_server_addr = self.api_server_addr.to_string().clone();
-        let node_name = self.node_name.to_string().clone();
-        recv_tasks(&api_server_addr, &node_name);
-
+        recv_tasks(&self.api_server_addr, &self.node_name);
         for _ in tasks {}
-
         task_close();
 
         output::output_wait_all();

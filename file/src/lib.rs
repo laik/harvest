@@ -6,17 +6,14 @@ use crossbeam_channel::{unbounded, Sender};
 use db::Pod;
 use output::output_write;
 use serde_json::json;
+use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
+use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader, Seek, SeekFrom};
-use std::{
-    collections::hash_map::DefaultHasher,
-    fs::File,
-    hash::{Hash, Hasher},
-};
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
+#[derive(Debug)]
 pub enum SendFileEvent {
     Close,
     Other,
@@ -184,12 +181,6 @@ impl FileReaderWriter {
                     (*is_until_align_offset) = true;
                 }
             }
-            // println!(
-            //     "is_until_align_offset {:?}, offset {:?}, filesize {:?}",
-            //     is_until_align_offset,
-            //     offset,
-            //     Self::file_size(&pod.path) as i64
-            // );
             if *is_until_align_offset {
                 break;
             }

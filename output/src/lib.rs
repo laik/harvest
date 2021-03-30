@@ -32,11 +32,11 @@ pub fn registry_kafka_output(channel: &str) {
             if ots.contains_output(channel) {
                 return;
             }
-            let mut buffer_size: usize = 100000;
+            let mut _buffer_size: usize = 100000;
             unsafe {
-                buffer_size = GLOBAL_BUFFER_SIZE;
+                _buffer_size = GLOBAL_BUFFER_SIZE;
             }
-            ots.registry_output(channel, Output::new(KafkaOuput::new(buffer_size)));
+            ots.registry_output(channel, Output::new(KafkaOuput::new(_buffer_size)));
         }
         Err(e) => {
             eprintln!("registry_kafka_output write lock failed: {:?}", e);
