@@ -42,10 +42,10 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
 
                 for task in request.to_pod_tasks() {
                     if request.op == RUN {
-                        println!("[INFO] task recv run task {:?}", &task);
+                        println!("[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}", &task.pod.ns,&task.pod.pod_name,&task.pod.output);
                         run_task(task);
                     } else if request.op == STOP {
-                        println!("[INFO] task recv stop task {:?}", &task);
+                        println!("[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}", &task.pod.ns,&task.pod.pod_name,&task.pod.output);
                         stop_task(task);
                     } else if request.op == HELLO {
                         println!("[INFO] task recv hello task");

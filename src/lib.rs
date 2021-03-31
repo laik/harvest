@@ -51,7 +51,7 @@ pub(crate) trait GetTask {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct Task {
-    pod: Pod,
+    pub(crate) pod: Pod,
 }
 
 impl GetTask for Task {
