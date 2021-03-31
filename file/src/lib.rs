@@ -127,7 +127,7 @@ impl FileReaderWriter {
         }
     }
 
-    fn file_size(path: &str) -> i64 {
+    fn _file_size(path: &str) -> i64 {
         let mut file = match File::open(&path) {
             Ok(file) => file,
             Err(e) => {
