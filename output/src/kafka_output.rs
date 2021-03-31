@@ -5,13 +5,12 @@ use kafka::{
     producer::{Producer, Record, RequiredAcks},
 };
 // use ringbuf::{Consumer as RConsumer, Producer as RProducer, RingBuffer};
-use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_channel::{select, unbounded, Receiver, Sender};
 
 use common::{retry_fn, retry_fn_mut};
 use std::{
     collections::HashMap,
     sync::{atomic::Ordering, Arc},
-    thread,
     time::Duration,
 };
 use std::{sync::atomic::AtomicUsize, time::Instant};
@@ -77,7 +76,7 @@ impl KafkaOuput {
 
     fn write_in(&mut self, channel: &str, item: &Item) {
         let prod = self.channels.get_mut(channel).unwrap();
-        let write = || -> bool {
+        let write_fn = || -> bool {
             if prod.is_full() {
                 return false;
             }
@@ -86,7 +85,7 @@ impl KafkaOuput {
                 Err(_) => false,
             }
         };
-        retry_fn_mut(write, Duration::from_millis(1))
+        retry_fn_mut(write_fn, Duration::from_millis(1))
     }
 
     async fn write_out(
@@ -100,45 +99,54 @@ impl KafkaOuput {
         let mut now = Instant::now();
         let mut write_buffer = Vec::with_capacity(buffer_size);
         loop {
-            if cons.is_empty() || now.elapsed().as_secs() < 1 {
-                thread::sleep(Duration::from_millis(1));
-                continue;
-            }
-
-            if let Ok(it) = cons.recv() {
-                write_buffer.push(Record::from_key_value(
-                    topic,
-                    format!("{:?}", index),
-                    it.string(),
-                ));
-                index += 1;
-                current.increase();
-            }
-
-            if index >= buffer_size || now.elapsed().as_secs() > 1 {
-                retry_fn_mut(
-                    || -> bool {
-                        let start = Instant::now();
-                        match kp.send_all(&write_buffer) {
-                            Ok(_) => {
-                                println!(
-                                    "[INFO] send buffer message count:{:?} to kafka elapsed:{:?}ms",
-                                    index,
-                                    start.elapsed().as_millis()
-                                );
-                                index = 0;
-                                now = Instant::now();
-                                write_buffer.clear();
-                                true
-                            }
-                            Err(e) => {
-                                eprintln!("{:?}", e);
-                                false
-                            }
+            select! {
+                recv(cons) -> result => {
+                    if let Ok(item) = result {
+                        write_buffer.push(Record::from_key_value(topic,format!("{:?}", index),item.string()));
+                        index += 1;
+                        current.increase();
+                        if index >= buffer_size || now.elapsed().as_millis() > 200 {
+                            retry_fn_mut(|| -> bool {
+                                let start = Instant::now();
+                                match kp.send_all(&write_buffer) {
+                                    Ok(_) => {
+                                        println!("[INFO] send buffer message count:{:?} to kafka elapsed:{:?}ms",index,start.elapsed().as_millis());
+                                        index = 0;
+                                        write_buffer.clear();
+                                        now = Instant::now();
+                                        true
+                                    }
+                                    Err(e) => {
+                                        eprintln!("{:?}", e);
+                                        false
+                                    }
+                                }
+                            },
+                                Duration::from_millis(1),
+                            );
                         }
-                    },
-                    Duration::from_millis(1),
-                );
+                    }
+                },
+                default(Duration::from_millis(1000)) => {
+                        retry_fn_mut(|| -> bool {
+                            let start = Instant::now();
+                            match kp.send_all(&write_buffer) {
+                                Ok(_) => {
+                                    println!("[INFO] send buffer message count:{:?} to kafka elapsed:{:?}ms",index,start.elapsed().as_millis());
+                                    index = 0;
+                                    write_buffer.clear();
+                                    now = Instant::now();
+                                    true
+                                }
+                                Err(e) => {
+                                    eprintln!("{:?}", e);
+                                    false
+                                }
+                            }
+                        },
+                        Duration::from_millis(1),
+                    );
+                },
             }
         }
     }
@@ -156,7 +164,7 @@ impl KafkaOuput {
         };
 
         let buffer_size = self.buffer_size.clone();
-        let (s, r) = bounded(buffer_size);
+        let (s, r) = unbounded();
 
         let topic = cfg.topic.clone();
         let current_count = Arc::clone(&self.current);
@@ -194,22 +202,22 @@ impl IOutput for KafkaOuput {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::KafkaOuput;
-    use crate::IOutput;
-    use common::Item;
+// #[cfg(test)]
+// mod tests {
+//     use super::KafkaOuput;
+//     use crate::IOutput;
+//     use common::Item;
 
-    #[test]
-    fn kafka_working() {
-        //first docker run a kafka
-        let mut ko = KafkaOuput::new(10240);
-        for index in 0..1024000 {
-            let item = Item::from(format!("{:?} xx", index).as_ref());
-            if let Err(e) = ko.write(&"kafka:test3@10.200.100.200:9092", item) {
-                panic!("{:?}", e)
-            }
-        }
-        ko.wait(0);
-    }
-}
+//     #[test]
+//     fn kafka_working() {
+//         //first docker run a kafka
+//         let mut ko = KafkaOuput::new(10240);
+//         for index in 0..1024000 {
+//             let item = Item::from(format!("{:?} xx", index).as_ref());
+//             if let Err(e) = ko.write(&"kafka:test3@10.200.100.200:9092", item) {
+//                 panic!("{:?}", e)
+//             }
+//         }
+//         ko.wait(0);
+//     }
+// }
