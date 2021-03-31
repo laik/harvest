@@ -153,13 +153,7 @@ impl FileReaderWriter {
         Ok(BufReader::new(file))
     }
 
-    async fn read_fn(
-        br: &mut BufReader<File>,
-        bf: &mut String,
-        offset: &mut i64,
-        is_until_align_offset: &mut bool,
-        pod: &Pod,
-    ) {
+    async fn read_fn(br: &mut BufReader<File>, bf: &mut String, offset: &mut i64, pod: &Pod) {
         while let Ok(line_size) = br.read_line(bf) {
             if line_size == 0 {
                 break;
@@ -169,15 +163,6 @@ impl FileReaderWriter {
             bf.clear();
 
             *offset += line_size as i64;
-
-            if !(*is_until_align_offset) {
-                if offset >= &mut (Self::file_size(&pod.path) as i64) {
-                    (*is_until_align_offset) = true;
-                }
-            }
-            if *is_until_align_offset {
-                break;
-            }
         }
     }
 
@@ -192,8 +177,6 @@ impl FileReaderWriter {
         let (tx, rx) = unbounded::<SendFileEvent>();
         task::spawn(async move {
             let mut bf = String::new();
-            let mut is_until_align_offset = false;
-
             let mut br = match Self::open_seek_bufr(&pod_clone.path, pod_clone.offset) {
                 Ok(it) => it,
                 Err(e) => {
@@ -201,18 +184,13 @@ impl FileReaderWriter {
                     return;
                 }
             };
+
             while let Ok(evt) = rx.recv() {
                 if let SendFileEvent::Close = evt {
                     break;
+                } else {
+                    Self::read_fn(&mut br, &mut bf, &mut offset, &pod_clone).await
                 }
-                Self::read_fn(
-                    &mut br,
-                    &mut bf,
-                    &mut offset,
-                    &mut is_until_align_offset,
-                    &pod_clone,
-                )
-                .await
             }
         });
 

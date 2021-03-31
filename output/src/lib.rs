@@ -98,8 +98,7 @@ impl Outputs {
             if line.len() == 0 {
                 return;
             }
-            eprintln!("output not found `{:?}`", channel);
-            eprintln!("use stdout {:?}", line);
+            eprintln!("output not found {:?} use stdout {:?}", channel, line);
             return;
         }
 

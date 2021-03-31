@@ -128,6 +128,9 @@ impl KafkaOuput {
                     }
                 },
                 default(Duration::from_millis(1000)) => {
+                        if write_buffer.len() == 0 {
+                            continue;
+                        }
                         retry_fn_mut(|| -> bool {
                             let start = Instant::now();
                             match kp.send_all(&write_buffer) {
