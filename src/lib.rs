@@ -171,9 +171,7 @@ impl TaskStorage {
                         for (_, mut pod) in
                             db::get_slice_with_ns_pod(&task.pod.ns, &task.pod.pod_name)
                         {
-                            pod.merge_with(&task.pod);
-                            pod.upload();
-                            pod.set_state_run();
+                            pod.merge_with(&task.pod).upload().set_state_run();
 
                             task.pod = pod;
                             tasks

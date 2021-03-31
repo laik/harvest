@@ -58,7 +58,9 @@ impl Pod {
         self.output = other.output.clone();
         self.offset = other.offset.clone();
         self.node_name = other.node_name.clone();
-        self.ips = self.ips.clone();
+        if other.ips.len() > 0 {
+            self.ips.clone_from(&other.ips)
+        }
         self.state = other.state.clone();
         self
     }
@@ -75,8 +77,8 @@ impl Pod {
         self.state == State::Stopped
     }
 
-    pub fn merge_with(&mut self, other: &Pod) {
-        self.merge(other);
+    pub fn merge_with(&mut self, other: &Pod) -> &mut Self {
+        self.merge(other)
     }
 
     pub fn compare_ns_pod(&self, other: &Pod) -> bool {

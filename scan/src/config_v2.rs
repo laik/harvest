@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs::File, io::BufReader};
 
-const SERVICE_LABEL_NAME: &'static str = "io.yametech.pod.harvest_service_lable";
+const SERVICE_LABEL_NAME: &'static str = "app";
 const NAMESPACE_LABEL_NAME: &'static str = "io.kubernetes.pod.namespace";
 const PODNAME_LABEL_NAME: &'static str = "io.kubernetes.pod.name";
 const CONTAINERNAME_LABEL_NAME: &'static str = "io.kubernetes.container.name";
