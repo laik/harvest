@@ -42,12 +42,15 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
 
                 for task in request.to_pod_tasks() {
                     if request.op == RUN {
+                        println!("[INFO] task recv run task {:?}", &task);
                         run_task(task);
                     } else if request.op == STOP {
+                        println!("[INFO] task recv stop task {:?}", &task);
                         stop_task(task);
                     } else if request.op == HELLO {
+                        println!("[INFO] task recv hello task");
                     } else {
-                        println!("recv api server unknown event: {:?}", request)
+                        println!("[INFO] recv api server unknown event: {:?}", request)
                     }
                 }
             }

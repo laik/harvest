@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fs::File, io::BufReader};
 
-const SERVICE_LABEL_NAME: &'static str = "app";
 const NAMESPACE_LABEL_NAME: &'static str = "io.kubernetes.pod.namespace";
 const PODNAME_LABEL_NAME: &'static str = "io.kubernetes.pod.name";
 const CONTAINERNAME_LABEL_NAME: &'static str = "io.kubernetes.container.name";
@@ -46,13 +45,6 @@ impl JSONConfig {
 
     pub fn get_pod_name(&self) -> String {
         if let Some(label) = self.config.labels.get(PODNAME_LABEL_NAME) {
-            return label.to_string();
-        }
-        "".to_string()
-    }
-
-    pub fn get_service_name(&self) -> String {
-        if let Some(label) = self.config.labels.get(SERVICE_LABEL_NAME) {
             return label.to_string();
         }
         "".to_string()

@@ -58,6 +58,7 @@ impl Pod {
         self.output = other.output.clone();
         self.offset = other.offset.clone();
         self.node_name = other.node_name.clone();
+        self.service_name = other.service_name.clone();
         if other.ips.len() > 0 {
             self.ips.clone_from(&other.ips)
         }

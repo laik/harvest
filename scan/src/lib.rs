@@ -219,14 +219,12 @@ impl AutoScanner {
     }
 
     fn config_to_pei(
-        service_name: &str,
         ns: &str,
         pod_name: &str,
         container_name: &str,
         log_path: &str,
     ) -> PathEventInfo {
         PathEventInfo {
-            service_name: service_name.to_string(),
             ns: ns.to_string(),
             pod_name: pod_name.to_string(),
             container_name: container_name.to_string(),
@@ -258,7 +256,6 @@ impl AutoScanner {
                     for (_, v) in hm.iter() {
                         if let Some(_j_s_o_n_config) = v {
                             result.push(Self::config_to_pei(
-                                &_j_s_o_n_config.get_service_name(),
                                 &_j_s_o_n_config.get_ns(),
                                 &_j_s_o_n_config.get_pod_name(),
                                 &_j_s_o_n_config.get_container_name(),
@@ -294,7 +291,6 @@ impl AutoScanner {
                     DockerConfigFileType::Log => match self.get(path) {
                         Some(cfg) => {
                             let pei = Self::config_to_pei(
-                                &cfg.get_service_name(),
                                 &cfg.get_ns(),
                                 &cfg.get_pod_name(),
                                 &cfg.get_container_name(),
@@ -331,7 +327,6 @@ impl AutoScanner {
                             DockerConfigFileType::Log => match self.get(path) {
                                 Some(cfg) => {
                                     let pei = Self::config_to_pei(
-                                        &cfg.get_service_name(),
                                         &cfg.get_ns(),
                                         &cfg.get_pod_name(),
                                         &cfg.get_container_name(),
