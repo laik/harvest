@@ -9,6 +9,7 @@ use sse_client::EventSource;
 
 const RUN: &'static str = "run";
 const STOP: &'static str = "stop";
+const HELLO: &'static str = "hello";
 
 pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
     retry_fn(
@@ -37,7 +38,6 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
                     continue;
                 }
 
-                println!("[INFO] recv task {:?}", request);
                 output::registry_kafka_output(request.output);
 
                 for task in request.to_pod_tasks() {
@@ -45,6 +45,7 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
                         run_task(task);
                     } else if request.op == STOP {
                         stop_task(task);
+                    } else if request.op == HELLO {
                     } else {
                         println!("recv api server unknown event: {:?}", request)
                     }

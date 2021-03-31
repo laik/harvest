@@ -33,7 +33,8 @@ impl<'a> Harvest<'a> {
             String::from(self.docker_dir),
         ));
 
-        let frw = FileReaderWriter::new(1);
+        // on kubernetes the kubelet default 110 pod in every node
+        let frw = FileReaderWriter::new(110);
 
         // registry scanner event handle
         if let Ok(mut scan) = scanner.write() {
