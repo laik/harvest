@@ -216,6 +216,7 @@ fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
                   "container":pod.container,
                   "serviceName":pod.service_name,
                   "ips":pod.ips,
+                  "ns":pod.ns,
                   "version":"v1.0.0",
                 },
             "message":message_item.get_key("log")}
@@ -229,6 +230,7 @@ fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
                   "container":pod.container,
                   "serviceName":pod.service_name,
                   "ips":pod.ips,
+                  "ns":pod.ns,
                   "version":"v1.0.0",
                 },
             "message":message_item.string()}
