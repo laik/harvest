@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use super::{run_task, stop_task, tasks_json, Task};
 use common::retry_fn;
@@ -23,7 +23,7 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
             };
 
             for event in event_sources.receiver().iter() {
-                let request = match serde_json::from_str::<ApiServerRequest>(&event.data) {
+                let request = match serde_json::from_str::<Cmd>(&event.data) {
                     Ok(it) => it,
                     Err(e) => {
                         eprintln!(
@@ -42,10 +42,16 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
 
                 for task in request.to_pod_tasks() {
                     if request.op == RUN {
-                        println!("[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}", &task.pod.ns,&task.pod.pod_name,&task.pod.output);
+                        println!(
+                            "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
+                            &task.container.ns, &task.container.pod_name, &task.container.output
+                        );
                         run_task(task);
                     } else if request.op == STOP {
-                        println!("[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}", &task.pod.ns,&task.pod.pod_name,&task.pod.output);
+                        println!(
+                            "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
+                            &task.container.ns, &task.container.pod_name, &task.container.output
+                        );
                         stop_task(task);
                     } else if request.op == HELLO {
                         println!("[INFO] task recv hello task");
@@ -60,43 +66,71 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
     )
 }
 
+/*
+{
+   "op":"run",
+   "ns":"default",
+   "service_name":"xx_service",
+   "filter":{"max_length":1024,"expr":"[INFO]"},
+   "output":"fake_output",
+   "pods":[
+      {
+         "node":"node1",
+         "pod" :"pod-12345",
+         "container":"nginx",
+         "ips":[
+            "127.0.0.1"
+         ],
+         "offset":0
+      }
+   ]
+}
+*/
+
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct Cmd<'a> {
+    op: &'a str,
+    pub(crate) ns: &'a str,
+    pub(crate) output: &'a str,
+    pub(crate) filter: HashMap<&'a str, &'a str>,
+    pub(crate) service_name: &'a str,
+    pub(crate) pods: Vec<Pod<'a>>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct RequestPod<'a> {
+pub(crate) struct Pod<'a> {
     pub(crate) node: &'a str,
     pub(crate) pod: &'a str,
+    pub(crate) container: &'a str,
     pub(crate) ips: Vec<&'a str>,
     pub(crate) offset: i64,
 }
 
-//{"op":"run","ns":"default","service_name":"xx_service","rules":"","output":"fake_output","pods":[{"node":"node1","pod":"xx","ips":["127.0.0.1"],"offset":0}]}
-//{"op":"stop","ns":"default","service_name":"xx_service","rules":"","output":"fake_output","pods":[{"node":"node1","pod":"xx","ips":["127.0.0.1"],"offset":0}]}
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct ApiServerRequest<'a> {
-    op: &'a str,
-    pub(crate) ns: &'a str,
-    pub(crate) output: &'a str,
-    pub(crate) rules: &'a str,
-    pub(crate) service_name: &'a str,
-    pub(crate) pods: Vec<RequestPod<'a>>,
+fn copy_hash_map<'a>(data: &HashMap<&'a str, &'a str>) -> HashMap<String, String> {
+    let mut result = HashMap::new();
+    for (key, value) in data {
+        result.insert(key.to_string(), value.to_string());
+    }
+    result
 }
 
-impl<'a> ApiServerRequest<'a> {
+impl<'a> Cmd<'a> {
     pub fn to_pod_tasks(&self) -> Vec<Task> {
         self.pods
             .iter()
             .map(|req_pod| {
                 let mut task = Task::from(req_pod.clone());
-                task.pod.ns = self.ns.to_string();
-                task.pod.output = self.output.to_string();
-                task.pod.service_name = self.service_name.to_string();
-                task.pod.filter = self.rules.to_string();
+                task.container.ns = self.ns.to_string();
+                task.container.output = self.output.to_string();
+                task.container.service_name = self.service_name.to_string();
+                task.container.filter = copy_hash_map(&self.filter);
                 task
             })
             .collect::<Vec<Task>>()
     }
 }
 
-impl<'a> ApiServerRequest<'a> {
+impl<'a> Cmd<'a> {
     pub fn has_node_events(&self, node_name: &str) -> bool {
         for pod in self.pods.iter() {
             if pod.node == node_name {
@@ -128,7 +162,7 @@ pub(crate) fn query_all_pod() -> JsonValue {
 
 #[get("/pod/<name>")]
 pub(crate) fn query_pod(name: String) -> JsonValue {
-    if let Some(pod) = db::get_pod(&name) {
+    if let Some(pod) = db::get_container(&name) {
         return json!(pod);
     } else {
         json!({})
@@ -145,6 +179,38 @@ pub(crate) fn not_found() -> JsonValue {
 
 #[cfg(test)]
 mod tests {
+    use super::Cmd;
+
     #[test]
-    fn it_works() {}
+    fn cmd_it_works() {
+        let data = r#"
+        {
+            "op":"run",
+            "ns":"kube-system",
+            "service_name":"echoer-api",
+            "filter":{
+               "max_length":"1024",
+               "expr":"[INFO]"
+            },
+            "output":"fake_output",
+            "pods":[
+               {
+                  "node":"node1",
+                  "pod":"echoer-api-86c648d678-z2p9p",
+                  "container":"echoer-api-86c648d678-z2p9p",
+                  "ips":[
+                     "127.0.0.1"
+                  ],
+                  "offset":0
+               }
+            ]
+         }"#;
+
+        match serde_json::from_str::<Cmd>(data) {
+            Ok(it) => it,
+            Err(e) => {
+                panic!("{:?}", e)
+            }
+        };
+    }
 }

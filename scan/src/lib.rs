@@ -1,5 +1,5 @@
 use common::Result;
-use db::Pod;
+use db::Container;
 use event::{Dispatch, Listener};
 use notify::{raw_watcher, RawEvent, RecursiveMode, Watcher};
 use std::collections::{hash_map::DefaultHasher, HashMap};
@@ -65,8 +65,8 @@ impl GetDebug for PathEventInfo {
 }
 
 impl PathEventInfo {
-    pub fn to_pod(&self) -> Pod {
-        Pod {
+    pub fn to_pod(&self) -> Container {
+        Container {
             service_name: self.service_name.clone(),
             ns: self.ns.clone(),
             pod_name: self.pod_name.clone(),

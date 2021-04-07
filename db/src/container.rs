@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub enum State {
@@ -6,7 +8,7 @@ pub enum State {
     Stopped,
 }
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
-pub struct Pod {
+pub struct Container {
     pub ns: String,
     pub service_name: String,
     pub pod_name: String,
@@ -15,14 +17,14 @@ pub struct Pod {
     pub offset: i64,
     pub is_upload: bool,
     pub state: State,
-    pub filter: String,
+    pub filter: HashMap<String, String>,
     pub output: String,
     pub ips: Vec<String>,
     pub last_offset: i64,
     pub node_name: String,
 }
 
-impl Pod {
+impl Container {
     pub fn set_state_run(&mut self) -> &mut Self {
         self.state = State::Running;
         self
@@ -52,7 +54,7 @@ impl Pod {
         self
     }
 
-    pub fn merge(&mut self, other: &Pod) -> &mut Self {
+    pub fn merge(&mut self, other: &Container) -> &mut Self {
         self.is_upload = other.is_upload;
         self.filter = other.filter.clone();
         self.output = other.output.clone();
@@ -78,11 +80,11 @@ impl Pod {
         self.state == State::Stopped
     }
 
-    pub fn merge_with(&mut self, other: &Pod) -> &mut Self {
+    pub fn merge_with(&mut self, other: &Container) -> &mut Self {
         self.merge(other)
     }
 
-    pub fn compare_ns_pod(&self, other: &Pod) -> bool {
+    pub fn compare_ns_pod(&self, other: &Container) -> bool {
         self.ns == other.ns && self.pod_name == other.pod_name
     }
 
@@ -93,9 +95,9 @@ impl Pod {
     }
 }
 
-impl Default for Pod {
-    fn default() -> Pod {
-        Pod {
+impl Default for Container {
+    fn default() -> Container {
+        Container {
             service_name: "".to_string(),
             path: "".to_string(),
             offset: 0,
@@ -104,7 +106,7 @@ impl Default for Pod {
             container: "".to_string(),
             is_upload: false,
             state: State::Ready,
-            filter: "".to_string(),
+            filter: HashMap::new(),
             output: "".to_string(),
             ips: Vec::new(),
             last_offset: 0,
@@ -113,22 +115,22 @@ impl Default for Pod {
     }
 }
 
-pub trait GetPod {
-    fn get(&self) -> Option<&Pod>;
+pub trait GetContainer {
+    fn get(&self) -> Option<&Container>;
 }
 
-impl GetPod for Pod {
-    fn get(&self) -> Option<&Pod> {
+impl GetContainer for Container {
+    fn get(&self) -> Option<&Container> {
         Some(self)
     }
 }
 
-pub type PodList = Vec<Pod>;
+pub type ContainerList = Vec<Container>;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PodListMarshaller(pub PodList);
+pub struct ContainerListMarshaller(pub ContainerList);
 
-impl PodListMarshaller {
+impl ContainerListMarshaller {
     pub fn to_json(&self) -> String {
         match serde_json::to_string(&self.0) {
             Ok(contents) => contents,

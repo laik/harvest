@@ -1,5 +1,5 @@
 use crate::{get_pod_task, GetTask};
-use db::GetPod;
+use db::GetContainer;
 use event::Listener;
 use file::FileReaderWriter;
 use scan::GetPathEventInfo;
@@ -7,7 +7,7 @@ use scan::GetPathEventInfo;
 pub(crate) struct DBOpenEvent(pub FileReaderWriter);
 impl<T> Listener<T> for DBOpenEvent
 where
-    T: Clone + GetPod,
+    T: Clone + GetContainer,
 {
     fn handle(&self, t: T) {
         self.0.open_event(&mut t.get().unwrap().clone())
@@ -17,7 +17,7 @@ where
 pub(crate) struct DBCloseEvent(pub FileReaderWriter);
 impl<T> Listener<T> for DBCloseEvent
 where
-    T: Clone + GetPod,
+    T: Clone + GetContainer,
 {
     fn handle(&self, t: T) {
         self.0.remove_event(&t.get().unwrap().path)
@@ -33,7 +33,7 @@ where
         let pod = t.get().to_pod();
         db::insert(&pod);
         if let Some(t) = get_pod_task(&pod.pod_name) {
-            if !t.pod.is_upload() {
+            if !t.container.is_upload() {
                 return;
             }
             self.0.write_event(&pod.path)
@@ -69,7 +69,7 @@ where
     T: Clone + GetTask,
 {
     fn handle(&self, t: T) {
-        let mut pod = t.get().pod.clone();
+        let mut pod = t.get().container.clone();
         self.0.open_event(&mut pod);
     }
 }
@@ -80,6 +80,6 @@ where
     T: Clone + GetTask,
 {
     fn handle(&self, t: T) {
-        self.0.close_event(&t.get().pod.path)
+        self.0.close_event(&t.get().container.path)
     }
 }

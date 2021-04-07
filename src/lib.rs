@@ -11,7 +11,7 @@ mod api;
 mod handle;
 mod server;
 
-use db::Pod;
+use db::Container;
 use event::{Dispatch, Listener};
 pub use serde_json;
 
@@ -51,7 +51,7 @@ pub(crate) trait GetTask {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct Task {
-    pub(crate) pod: Pod,
+    pub(crate) container: Container,
 }
 
 impl GetTask for Task {
@@ -60,18 +60,19 @@ impl GetTask for Task {
     }
 }
 
-impl<'a> From<RequestPod<'a>> for Task {
-    fn from(a: RequestPod) -> Self {
+impl<'a> From<Pod<'a>> for Task {
+    fn from(a: Pod) -> Self {
         let ips = a
             .ips
             .iter()
             .map(|ip| ip.to_string())
             .collect::<Vec<String>>();
         Self {
-            pod: Pod {
+            container: Container {
                 pod_name: a.pod.to_string(),
                 offset: a.offset,
                 ips,
+                container: a.container.to_string(),
                 ..Default::default()
             },
         }
@@ -81,7 +82,7 @@ impl<'a> From<RequestPod<'a>> for Task {
 impl Default for Task {
     fn default() -> Self {
         Self {
-            pod: Pod::default(),
+            container: Container::default(),
         }
     }
 }
@@ -168,14 +169,18 @@ impl TaskStorage {
                                 continue;
                             }
                         };
-                        for (_, mut pod) in
-                            db::get_slice_with_ns_pod(&task.pod.ns, &task.pod.pod_name)
-                        {
-                            pod.merge_with(&task.pod).upload().set_state_run();
+                        for (_, mut container) in db::get_slice_with_ns_container(
+                            &task.container.ns,
+                            &task.container.pod_name,
+                        ) {
+                            container
+                                .merge_with(&task.container)
+                                .upload()
+                                .set_state_run();
 
-                            task.pod = pod;
+                            task.container = container;
                             tasks
-                                .entry(task.pod.pod_name.clone())
+                                .entry(task.container.pod_name.clone())
                                 .or_insert(task.clone());
                             match t_dispatchers.write() {
                                 Ok(mut dispatch) => dispatch.dispatch_run_event(&task),
@@ -191,14 +196,14 @@ impl TaskStorage {
                                 continue;
                             }
                         };
-                        for (_, mut pod) in
-                            db::get_slice_with_ns_pod(&task.pod.ns, &task.pod.pod_name)
-                        {
-                            pod.un_upload();
-                            pod.set_state_stop();
-                            task.pod = pod;
+                        for (_, mut container) in db::get_slice_with_ns_container(
+                            &task.container.ns,
+                            &task.container.pod_name,
+                        ) {
+                            container.un_upload().set_state_stop();
+                            task.container = container;
                             tasks
-                                .entry(task.pod.pod_name.clone())
+                                .entry(task.container.pod_name.clone())
                                 .or_insert(task.clone());
                             match t_dispatchers.write() {
                                 Ok(mut dispatch) => dispatch.dispatch_stop_event(&task),

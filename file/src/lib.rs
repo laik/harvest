@@ -3,7 +3,7 @@ extern crate crossbeam_channel;
 use async_std::task;
 use common::{Item, Result};
 use crossbeam_channel::{unbounded, Sender};
-use db::Pod;
+use db::Container;
 use output::output_write;
 use serde_json::json;
 use std::collections::hash_map::DefaultHasher;
@@ -153,31 +153,36 @@ impl FileReaderWriter {
         Ok(BufReader::new(file))
     }
 
-    async fn read_fn(br: &mut BufReader<File>, bf: &mut String, offset: &mut i64, pod: &Pod) {
+    async fn read_fn(
+        br: &mut BufReader<File>,
+        bf: &mut String,
+        offset: &mut i64,
+        container: &Container,
+    ) {
         while let Ok(line_size) = br.read_line(bf) {
             if line_size == 0 {
                 break;
             }
-            output_write(&pod.output, &encode_message(&pod, bf.as_str()));
-            db::incr_offset(&pod.path, line_size as i64);
+            output_write(&container.output, &encode_message(&container, bf.as_str()));
+            db::incr_offset(&container.path, line_size as i64);
             bf.clear();
 
             *offset += line_size as i64;
         }
     }
 
-    pub fn open_event(&self, pod: &mut Pod) {
-        if self.contains_key(&pod.path) {
+    pub fn open_event(&self, container: &mut Container) {
+        if self.contains_key(&container.path) {
             return;
         }
 
-        let pod_clone = pod.clone();
-        let mut offset = pod.offset;
+        let container_clone = container.clone();
+        let mut offset = container.offset;
 
         let (tx, rx) = unbounded::<SendFileEvent>();
         task::spawn(async move {
             let mut bf = String::new();
-            let mut br = match Self::open_seek_bufr(&pod_clone.path, pod_clone.offset) {
+            let mut br = match Self::open_seek_bufr(&container_clone.path, container_clone.offset) {
                 Ok(it) => it,
                 Err(e) => {
                     eprintln!("{:?}", e);
@@ -189,21 +194,21 @@ impl FileReaderWriter {
                 if let SendFileEvent::Close = evt {
                     break;
                 } else {
-                    Self::read_fn(&mut br, &mut bf, &mut offset, &pod_clone).await
+                    Self::read_fn(&mut br, &mut bf, &mut offset, &container_clone).await
                 }
             }
         });
 
-        self.registry(&pod.path, tx);
+        self.registry(&container.path, tx);
 
-        db::update(&pod.set_state_run());
-        if let Err(e) = self.send_write_event(&pod.path) {
+        db::update(&container.set_state_run());
+        if let Err(e) = self.send_write_event(&container.path) {
             eprintln!("frw send first event error: {:?}", e);
         }
     }
 }
 
-fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
+fn encode_message<'a>(container: &'a Container, message: &'a str) -> String {
     if message.len() == 0 {
         return "".to_string();
     }
@@ -212,11 +217,11 @@ fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
         json!({
             "custom":
                 {
-                  "nodeId":pod.pod_name,
-                  "container":pod.container,
-                  "serviceName":pod.service_name,
-                  "ips":pod.ips,
-                  "ns":pod.ns,
+                  "nodeId":container.pod_name,
+                  "container":container.container,
+                  "serviceName":container.service_name,
+                  "ips":container.ips,
+                  "ns":container.ns,
                   "version":"v1.0.0",
                 },
             "message":message_item.get_key("log")}
@@ -226,11 +231,11 @@ fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
         json!({
             "custom":
                 {
-                  "nodeId":pod.pod_name,
-                  "container":pod.container,
-                  "serviceName":pod.service_name,
-                  "ips":pod.ips,
-                  "ns":pod.ns,
+                  "nodeId":container.pod_name,
+                  "container":container.container,
+                  "serviceName":container.service_name,
+                  "ips":container.ips,
+                  "ns":container.ns,
                   "version":"v1.0.0",
                 },
             "message":message_item.string()}
@@ -242,11 +247,11 @@ fn encode_message<'a>(pod: &'a Pod, message: &'a str) -> String {
 #[cfg(test)]
 mod tests {
     use crate::FileReaderWriter;
-    use db::Pod;
+    use db::Container;
 
     #[test]
     fn it_works() {
         let input = FileReaderWriter::new(10);
-        input.open_event(&mut Pod::default());
+        input.open_event(&mut Container::default());
     }
 }
