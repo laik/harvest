@@ -12,9 +12,10 @@ const STOP: &'static str = "stop";
 const HELLO: &'static str = "hello";
 
 pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
+    let uri = addr.to_string() + node_name;
     retry_fn(
         || -> bool {
-            let event_sources = match EventSource::new(addr) {
+            let event_sources = match EventSource::new(&uri) {
                 Ok(it) => it,
                 Err(e) => {
                     eprintln!("{:?}", e);
