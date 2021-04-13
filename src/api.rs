@@ -18,19 +18,22 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
             let event_sources = match EventSource::new(&uri) {
                 Ok(it) => it,
                 Err(e) => {
-                    eprintln!("{:?}", e);
+                    eprintln!("[ERROR] {:?}", e);
                     return false;
                 }
             };
+
+            let mut error_cnt = 0;
 
             for event in event_sources.receiver().iter() {
                 let request = match serde_json::from_str::<Cmd>(&event.data) {
                     Ok(it) => it,
                     Err(e) => {
-                        eprintln!(
-                        "recv event parse json error or connect to api server error: {:?} \n data: {:?}",
-                        e, &event.data
-                    );
+                        eprintln!("[ERROR] recv cmd from api server error: {:?}", e);
+                        error_cnt += 1;
+                        if error_cnt >= 5 {
+                            return false;
+                        }
                         continue;
                     }
                 };
@@ -89,29 +92,35 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
 */
 
 #[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct Filter<'a> {
+    max_length: &'a str,
+    expr: &'a str,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct Cmd<'a> {
     op: &'a str,
     pub(crate) ns: &'a str,
     pub(crate) output: &'a str,
-    pub(crate) filter: HashMap<&'a str, &'a str>,
+    pub(crate) filter: Filter<'a>,
     pub(crate) service_name: &'a str,
     pub(crate) pods: Vec<Pod<'a>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct Pod<'a> {
-    pub(crate) node: &'a str,
-    pub(crate) pod: &'a str,
+    pub(crate) node_name: &'a str,
+    pub(crate) pod_name: &'a str,
     pub(crate) container: &'a str,
     pub(crate) ips: Vec<&'a str>,
     pub(crate) offset: i64,
 }
 
-fn copy_hash_map<'a>(data: &HashMap<&'a str, &'a str>) -> HashMap<String, String> {
+fn filter_to_hash_map<'a>(filter: &Filter) -> HashMap<String, String> {
     let mut result = HashMap::new();
-    for (key, value) in data {
-        result.insert(key.to_string(), value.to_string());
-    }
+    result.insert("max_length".to_string(), filter.max_length.to_string());
+    result.insert("expr".to_string(), filter.expr.to_string());
+
     result
 }
 
@@ -119,12 +128,12 @@ impl<'a> Cmd<'a> {
     pub fn to_pod_tasks(&self) -> Vec<Task> {
         self.pods
             .iter()
-            .map(|req_pod| {
-                let mut task = Task::from(req_pod.clone());
+            .map(|pod| {
+                let mut task = Task::from(pod.clone());
                 task.container.ns = self.ns.to_string();
                 task.container.output = self.output.to_string();
                 task.container.service_name = self.service_name.to_string();
-                task.container.filter = copy_hash_map(&self.filter);
+                task.container.filter = filter_to_hash_map(&self.filter);
                 task
             })
             .collect::<Vec<Task>>()
@@ -134,7 +143,7 @@ impl<'a> Cmd<'a> {
 impl<'a> Cmd<'a> {
     pub fn has_node_events(&self, node_name: &str) -> bool {
         for pod in self.pods.iter() {
-            if pod.node == node_name {
+            if pod.node_name == node_name {
                 return true;
             }
         }

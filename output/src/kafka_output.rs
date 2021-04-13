@@ -142,7 +142,7 @@ impl KafkaOuput {
                                     true
                                 }
                                 Err(e) => {
-                                    eprintln!("{:?}", e);
+                                    eprintln!("[ERROR] send message to kafka error:{:?}", e);
                                     false
                                 }
                             }

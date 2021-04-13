@@ -30,13 +30,14 @@ where
     T: Clone + GetPathEventInfo,
 {
     fn handle(&self, t: T) {
-        let pod = t.get().to_pod();
-        db::insert(&pod);
-        if let Some(t) = get_pod_task(&pod.pod_name) {
+        let mut container = t.get().to_pod();
+        db::insert(&container);
+        if let Some(t) = get_pod_task(&container.pod_name) {
             if !t.container.is_upload() {
                 return;
             }
-            self.0.write_event(&pod.path)
+            self.0.open_event(&mut container);
+            self.0.write_event(&container.path)
         }
     }
 }
@@ -57,9 +58,9 @@ where
     T: Clone + GetPathEventInfo,
 {
     fn handle(&self, t: T) {
-        let mut pod = t.get().to_pod();
-        pod.set_state_stop();
-        db::update(&pod);
+        let mut container = t.get().to_pod();
+        container.set_state_stop();
+        db::update(&container);
     }
 }
 
@@ -69,8 +70,8 @@ where
     T: Clone + GetTask,
 {
     fn handle(&self, t: T) {
-        let mut pod = t.get().container.clone();
-        self.0.open_event(&mut pod);
+        let mut container = t.get().container.clone();
+        self.0.open_event(&mut container);
     }
 }
 

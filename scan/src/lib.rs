@@ -133,7 +133,7 @@ impl AutoScanner {
                 w.remove(k);
             }
             Err(e) => {
-                eprintln!("cache remove failed: {:?}", e)
+                eprintln!("[ERROR] cache remove failed: {:?}", e)
             }
         }
     }
@@ -148,7 +148,7 @@ impl AutoScanner {
                 w.insert(k.to_string(), Some(v));
             }
             Err(e) => {
-                eprintln!("cache insert failed: {:?}", e)
+                eprintln!("[ERROR] cache insert failed: {:?}", e)
             }
         }
     }
@@ -163,7 +163,7 @@ impl AutoScanner {
                 w.insert(k.to_string(), None);
             }
             Err(e) => {
-                eprintln!("cache insert failed: {:?}", e)
+                eprintln!("[ERROR] cache insert failed: {:?}", e)
             }
         }
     }
@@ -177,7 +177,7 @@ impl AutoScanner {
                 None => None,
             },
             Err(e) => {
-                eprintln!("cache get key {:?} failed: {:?}", k, e);
+                eprintln!("[ERROR] cache get key {:?} failed: {:?}", k, e);
                 None
             }
         }

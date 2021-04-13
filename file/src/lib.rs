@@ -50,7 +50,7 @@ impl FileReaderWriter {
                 w.remove(k);
             }
             Err(e) => {
-                eprintln!("cache remove failed: {:?}", e)
+                eprintln!("[ERROR] cache remove failed: {:?}", e)
             }
         }
     }
@@ -64,7 +64,7 @@ impl FileReaderWriter {
                 None => None,
             },
             Err(e) => {
-                eprintln!("cache get key {:?} failed: {:?}", k, e);
+                eprintln!("[ERROR] cache get key {:?} failed: {:?}", k, e);
                 None
             }
         }
@@ -76,7 +76,7 @@ impl FileReaderWriter {
         match reader {
             Ok(r) => r.contains_key(k),
             Err(e) => {
-                eprintln!("cache get key {:?} failed: {:?}", k, e);
+                eprintln!("[ERROR] cache get key {:?} failed: {:?}", k, e);
                 false
             }
         }
@@ -89,7 +89,7 @@ impl FileReaderWriter {
                 w.insert(k.to_string(), v);
             }
             Err(e) => {
-                eprintln!("cache insert failed: {:?}", e)
+                eprintln!("[ERROR] cache insert failed: {:?}", e)
             }
         }
     }
@@ -97,7 +97,7 @@ impl FileReaderWriter {
     pub fn close_event(&self, path: &str) {
         if let Some(tx) = self.get(path) {
             if let Err(e) = tx.send(SendFileEvent::Close) {
-                eprintln!("frw send close to {:?} handle error: {:?}", path, e);
+                eprintln!("[ERROR] frw send close to {:?} handle error: {:?}", path, e);
             }
             self.remove(path);
         }
@@ -106,7 +106,7 @@ impl FileReaderWriter {
     pub fn remove_event(&self, path: &str) {
         if let Some(tx) = self.get(path) {
             if let Err(e) = tx.send(SendFileEvent::Close) {
-                eprintln!("frw send remove to {:?} handle error: {:?}", path, e);
+                eprintln!("[ERROR] frw send remove to {:?} handle error: {:?}", path, e);
             }
             self.remove(path);
         };
@@ -123,7 +123,7 @@ impl FileReaderWriter {
 
     pub fn write_event(&self, path: &str) {
         if let Err(e) = self.send_write_event(path) {
-            eprintln!("frw send write event error: {:?}", e)
+            eprintln!("[ERROR] frw send write event error: {:?}", e)
         }
     }
 
@@ -131,14 +131,14 @@ impl FileReaderWriter {
         let mut file = match File::open(&path) {
             Ok(file) => file,
             Err(e) => {
-                eprintln!("frw open file {:?} error: {:?}", path, e);
+                eprintln!("[ERROR] frw open file {:?} error: {:?}", path, e);
                 return -1;
             }
         };
         file.stream_len().unwrap() as i64
     }
 
-    fn open_seek_bufr(path: &str, offset: i64) -> Result<BufReader<File>> {
+    fn open_seek_buffer(path: &str, offset: i64) -> Result<BufReader<File>> {
         let mut file = match File::open(path) {
             Ok(file) => file,
             Err(e) => {
@@ -182,7 +182,7 @@ impl FileReaderWriter {
         let (tx, rx) = unbounded::<SendFileEvent>();
         task::spawn(async move {
             let mut bf = String::new();
-            let mut br = match Self::open_seek_bufr(&container_clone.path, container_clone.offset) {
+            let mut br = match Self::open_seek_buffer(&container_clone.path, container_clone.offset) {
                 Ok(it) => it,
                 Err(e) => {
                     eprintln!("{:?}", e);
@@ -203,7 +203,7 @@ impl FileReaderWriter {
 
         db::update(&container.set_state_run());
         if let Err(e) = self.send_write_event(&container.path) {
-            eprintln!("frw send first event error: {:?}", e);
+            eprintln!("[ERROR] frw send first event error: {:?}", e);
         }
     }
 }

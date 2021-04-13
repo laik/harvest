@@ -39,7 +39,7 @@ pub fn registry_kafka_output(channel: &str) {
             ots.registry_output(channel, Output::new(KafkaOuput::new(_buffer_size)));
         }
         Err(e) => {
-            eprintln!("registry_kafka_output write lock failed: {:?}", e);
+            eprintln!("[ERROR] registry_kafka_output write lock failed: {:?}", e);
         }
     }
 }
@@ -48,13 +48,13 @@ pub fn output_write(channel: &str, data: &str) {
     match OUTPUTS.write() {
         Ok(mut ots) => {
             if !ots.contains_output(channel) {
-                eprintln!("output_write not found channel {:?}", channel);
+                eprintln!("[ERROR] output_write not found channel {:?}", channel);
                 return;
             }
             ots.output(channel, data);
         }
         Err(e) => {
-            eprintln!("output_write error: {:?}", e);
+            eprintln!("[ERROR] output_write error: {:?}", e);
         }
     }
 }
@@ -98,14 +98,17 @@ impl Outputs {
             if line.len() == 0 {
                 return;
             }
-            eprintln!("output not found {:?} use stdout {:?}", channel, line);
+            eprintln!(
+                "[ERROR] output not found {:?} use stdout {:?}",
+                channel, line
+            );
             return;
         }
 
         match self.output_listener.get_mut(channel) {
             Some(o) => {
                 if let Err(e) = o.write(channel, Item::from(line)) {
-                    eprintln!("{:?}", e);
+                    eprintln!("[ERROR] write to channel {:?} error: {:?}", channel, e);
                 }
             }
             _ => {}

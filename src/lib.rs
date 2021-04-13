@@ -69,10 +69,11 @@ impl<'a> From<Pod<'a>> for Task {
             .collect::<Vec<String>>();
         Self {
             container: Container {
-                pod_name: a.pod.to_string(),
+                pod_name: a.pod_name.to_string(),
                 offset: a.offset,
                 ips,
                 container: a.container.to_string(),
+                node_name: a.node_name.to_string(),
                 ..Default::default()
             },
         }
