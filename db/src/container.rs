@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-
+use super::Filter;
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub enum State {
     Ready,
@@ -17,7 +17,7 @@ pub struct Container {
     pub offset: i64,
     pub is_upload: bool,
     pub state: State,
-    pub filter: HashMap<String, String>,
+    pub filter: Filter,
     pub output: String,
     pub ips: Vec<String>,
     pub last_offset: i64,
@@ -106,7 +106,10 @@ impl Default for Container {
             container: "".to_string(),
             is_upload: false,
             state: State::Ready,
-            filter: HashMap::new(),
+            filter: Filter {
+                max_length: 0,
+                expr: "".to_string(),
+            },
             output: "".to_string(),
             ips: Vec::new(),
             last_offset: 0,

@@ -11,6 +11,8 @@ pub use common::new_arc_rwlock;
 pub use database::Event;
 pub(crate) use database::{MemDatabase, MemDatabaseEventDispatcher};
 
+use serde::{Deserialize, Serialize};
+
 lazy_static! {
     static ref MEM: MemDatabase = {
         let m = MemDatabase::new(new_arc_rwlock(MemDatabaseEventDispatcher::new()));
@@ -176,4 +178,10 @@ where
             eprintln!("{:?}", e)
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Filter {
+    max_length: i64,
+    expr: String,
 }

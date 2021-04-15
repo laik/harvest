@@ -60,20 +60,22 @@ impl GetTask for Task {
     }
 }
 
-impl<'a> From<Pod<'a>> for Task {
-    fn from(a: Pod) -> Self {
-        let ips = a
-            .ips
-            .iter()
-            .map(|ip| ip.to_string())
-            .collect::<Vec<String>>();
+fn to_string_slice<'a>(src: &[&'a str]) -> Vec<String> {
+    let mut result = Vec::<String>::new();
+    for item in src {
+        result.push(item.to_string())
+    }
+    result
+}
+
+impl<'a> From<Cmd<'a>> for Task {
+    fn from(cmd: Cmd) -> Self {
         Self {
             container: Container {
-                pod_name: a.pod_name.to_string(),
-                offset: a.offset,
-                ips,
-                container: a.container.to_string(),
-                node_name: a.node_name.to_string(),
+                pod_name: cmd.pod_name.to_string(),
+                offset: cmd.offset as i64,
+                ips: to_string_slice(&cmd.ips),
+                node_name: cmd.node_name.to_string(),
                 ..Default::default()
             },
         }

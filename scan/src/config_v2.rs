@@ -52,9 +52,6 @@ impl JSONConfig {
 
     pub fn get_container_name(&self) -> String {
         if let Some(label) = self.config.labels.get(CONTAINERNAME_LABEL_NAME) {
-            if label == "POD" {
-                return self.get_pod_name();
-            }
             return label.to_string();
         }
         "".to_string()

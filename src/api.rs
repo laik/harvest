@@ -1,4 +1,4 @@
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
 use super::{run_task, stop_task, tasks_json, Task};
 use common::retry_fn;
@@ -18,7 +18,7 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
             let event_sources = match EventSource::new(&uri) {
                 Ok(it) => it,
                 Err(e) => {
-                    eprintln!("[ERROR] {:?}", e);
+                    eprintln!("[ERROR] create event source failed, error: {:?}", e);
                     return false;
                 }
             };
@@ -26,10 +26,13 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
             let mut error_cnt = 0;
 
             for event in event_sources.receiver().iter() {
-                let request = match serde_json::from_str::<Cmd>(&event.data) {
+                let cmd = match serde_json::from_str::<Cmd>(&event.data) {
                     Ok(it) => it,
                     Err(e) => {
-                        eprintln!("[ERROR] recv cmd from api server error: {:?}", e);
+                        eprintln!(
+                            "[ERROR] recv cmd from api server error: {:?}, data: {:?}",
+                            e, &event.data
+                        );
                         error_cnt += 1;
                         if error_cnt >= 5 {
                             return false;
@@ -38,30 +41,28 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
                     }
                 };
 
-                if !request.has_node_events(&node_name) {
+                if !cmd.has_node_events(&node_name) {
                     continue;
                 }
 
-                output::registry_kafka_output(request.output);
+                output::registry_kafka_output(cmd.output);
 
-                for task in request.to_pod_tasks() {
-                    if request.op == RUN {
-                        println!(
-                            "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
-                            &task.container.ns, &task.container.pod_name, &task.container.output
-                        );
-                        run_task(task);
-                    } else if request.op == STOP {
-                        println!(
-                            "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
-                            &task.container.ns, &task.container.pod_name, &task.container.output
-                        );
-                        stop_task(task);
-                    } else if request.op == HELLO {
-                        println!("[INFO] task recv hello task");
-                    } else {
-                        println!("[INFO] recv api server unknown event: {:?}", request)
-                    }
+                if cmd.op == RUN {
+                    println!(
+                        "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
+                        &cmd.ns, &cmd.pod_name, &cmd.output
+                    );
+                    run_task(Task::from(cmd));
+                } else if cmd.op == STOP {
+                    println!(
+                        "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
+                        &cmd.ns, &cmd.pod_name, &cmd.output
+                    );
+                    stop_task(Task::from(cmd));
+                } else if cmd.op == HELLO {
+                    println!("[INFO] task recv hello !");
+                } else {
+                    println!("[INFO] recv api server unknown event: {:?}", cmd)
                 }
             }
             false
@@ -77,75 +78,30 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
    "service_name":"xx_service",
    "filter":{"max_length":1024,"expr":"[INFO]"},
    "output":"fake_output",
-   "pods":[
-      {
-         "node":"node1",
-         "pod" :"pod-12345",
-         "container":"nginx",
-         "ips":[
-            "127.0.0.1"
-         ],
-         "offset":0
-      }
-   ]
+    "node":"node1",
+    "pod" :"pod-12345",
+    "ips":[ "127.0.0.1"],
+    "offset":0
 }
 */
-
-#[derive(Serialize, Deserialize, Debug)]
-pub(crate) struct Filter<'a> {
-    max_length: &'a str,
-    expr: &'a str,
-}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub(crate) struct Cmd<'a> {
     op: &'a str,
     pub(crate) ns: &'a str,
     pub(crate) output: &'a str,
-    pub(crate) filter: Filter<'a>,
+    pub(crate) filter: db::Filter,
     pub(crate) service_name: &'a str,
-    pub(crate) pods: Vec<Pod<'a>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct Pod<'a> {
     pub(crate) node_name: &'a str,
     pub(crate) pod_name: &'a str,
-    pub(crate) container: &'a str,
     pub(crate) ips: Vec<&'a str>,
-    pub(crate) offset: i64,
-}
-
-fn filter_to_hash_map<'a>(filter: &Filter) -> HashMap<String, String> {
-    let mut result = HashMap::new();
-    result.insert("max_length".to_string(), filter.max_length.to_string());
-    result.insert("expr".to_string(), filter.expr.to_string());
-
-    result
-}
-
-impl<'a> Cmd<'a> {
-    pub fn to_pod_tasks(&self) -> Vec<Task> {
-        self.pods
-            .iter()
-            .map(|pod| {
-                let mut task = Task::from(pod.clone());
-                task.container.ns = self.ns.to_string();
-                task.container.output = self.output.to_string();
-                task.container.service_name = self.service_name.to_string();
-                task.container.filter = filter_to_hash_map(&self.filter);
-                task
-            })
-            .collect::<Vec<Task>>()
-    }
+    pub(crate) offset: u64,
 }
 
 impl<'a> Cmd<'a> {
     pub fn has_node_events(&self, node_name: &str) -> bool {
-        for pod in self.pods.iter() {
-            if pod.node_name == node_name {
-                return true;
-            }
+        if self.node_name == node_name {
+            return true;
         }
         false
     }
@@ -193,28 +149,7 @@ mod tests {
 
     #[test]
     fn cmd_it_works() {
-        let data = r#"
-        {
-            "op":"run",
-            "ns":"kube-system",
-            "service_name":"echoer-api",
-            "filter":{
-               "max_length":"1024",
-               "expr":"[INFO]"
-            },
-            "output":"fake_output",
-            "pods":[
-               {
-                  "node":"node1",
-                  "pod":"echoer-api-86c648d678-z2p9p",
-                  "container":"echoer-api-86c648d678-z2p9p",
-                  "ips":[
-                     "127.0.0.1"
-                  ],
-                  "offset":0
-               }
-            ]
-         }"#;
+        let data = r#"{"op":"run","ns":"default","service_name":"xx_service","filter":{"max_length":1024,"expr":"[INFO]"},"output":"fake_output","node_name":"node1","pod_name" :"pod-12345","container":"nginx1","ips":[ "127.0.0.1"],"offset":0}"#;
 
         match serde_json::from_str::<Cmd>(data) {
             Ok(it) => it,
