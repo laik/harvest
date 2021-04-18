@@ -55,7 +55,7 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
                     run_task(Task::from(cmd));
                 } else if cmd.op == STOP {
                     println!(
-                        "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
+                        "[INFO] task recv stop task ns:{:?},pod:{:?},ouput:{:?}",
                         &cmd.ns, &cmd.pod_name, &cmd.output
                     );
                     stop_task(Task::from(cmd));
