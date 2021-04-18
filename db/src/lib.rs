@@ -95,13 +95,13 @@ pub fn get(uuid: &str) -> Option<Container> {
     }
 }
 
-pub fn get_container(container: &str) -> Option<Container> {
+pub fn get_pod(pod_name: &str) -> Option<Container> {
     if let Some((_, container)) = MEM
         .containers
         .read()
         .unwrap()
         .iter()
-        .find(|(_, v)| v.container == container)
+        .find(|(_, v)| v.pod_name == pod_name)
     {
         return Some(container.clone());
     } else {
@@ -109,14 +109,16 @@ pub fn get_container(container: &str) -> Option<Container> {
     }
 }
 
-pub fn get_slice_with_ns_container(ns: &str, pod_name: &str) -> Vec<(String, Container)> {
-    MEM.containers
+pub fn get_container_slice_by_pod(ns: &str, pod_name: &str) -> Vec<(String, Container)> {
+    let result = MEM
+        .containers
         .read()
         .unwrap()
         .iter()
         .filter(|(_, v)| v.ns == ns && v.pod_name == pod_name)
         .map(|(uuid, container)| (uuid.clone(), container.clone()))
-        .collect::<Vec<(String, Container)>>()
+        .collect::<Vec<(String, Container)>>();
+    result
 }
 
 pub fn delete_with_ns_container(ns: &str, container_name: &str) {
@@ -133,7 +135,7 @@ pub fn delete_with_ns_container(ns: &str, container_name: &str) {
 }
 
 pub fn container_upload_stop(ns: &str, container_name: &str) {
-    let res = get_slice_with_ns_container(ns, container_name);
+    let res = get_container_slice_by_pod(ns, container_name);
     for (_, mut container) in res {
         if container.is_stop() {
             continue;
@@ -145,7 +147,7 @@ pub fn container_upload_stop(ns: &str, container_name: &str) {
 }
 
 pub fn container_upload_start(ns: &str, container_name: &str) {
-    let res = get_slice_with_ns_container(ns, container_name);
+    let res = get_container_slice_by_pod(ns, container_name);
     for (_, mut container) in res {
         if container.is_upload() && container.is_running() {
             continue;
@@ -182,6 +184,6 @@ where
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Filter {
-    max_length: i64,
-    expr: String,
+    pub max_length: i64,
+    pub expr: String,
 }

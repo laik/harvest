@@ -128,7 +128,7 @@ pub(crate) fn query_all_pod() -> JsonValue {
 
 #[get("/pod/<name>")]
 pub(crate) fn query_pod(name: String) -> JsonValue {
-    if let Some(pod) = db::get_container(&name) {
+    if let Some(pod) = db::get_pod(&name) {
         return json!(pod);
     } else {
         json!({})

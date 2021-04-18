@@ -60,7 +60,7 @@ impl GetTask for Task {
     }
 }
 
-fn to_string_slice<'a>(src: &[&'a str]) -> Vec<String> {
+fn to_string_slice(src: &[&str]) -> Vec<String> {
     let mut result = Vec::<String>::new();
     for item in src {
         result.push(item.to_string())
@@ -72,10 +72,14 @@ impl<'a> From<Cmd<'a>> for Task {
     fn from(cmd: Cmd) -> Self {
         Self {
             container: Container {
+                ns: cmd.ns.to_string(),
+                node_name: cmd.node_name.to_string(),
+                service_name: cmd.service_name.to_string(),
                 pod_name: cmd.pod_name.to_string(),
                 offset: cmd.offset as i64,
                 ips: to_string_slice(&cmd.ips),
-                node_name: cmd.node_name.to_string(),
+                output: cmd.output.to_string(),
+                filter: cmd.filter.clone(),
                 ..Default::default()
             },
         }
@@ -172,10 +176,13 @@ impl TaskStorage {
                                 continue;
                             }
                         };
-                        for (_, mut container) in db::get_slice_with_ns_container(
+
+                        let pod_slice = db::get_container_slice_by_pod(
                             &task.container.ns,
                             &task.container.pod_name,
-                        ) {
+                        );
+
+                        for (_, mut container) in pod_slice {
                             container
                                 .merge_with(&task.container)
                                 .upload()
@@ -199,7 +206,7 @@ impl TaskStorage {
                                 continue;
                             }
                         };
-                        for (_, mut container) in db::get_slice_with_ns_container(
+                        for (_, mut container) in db::get_container_slice_by_pod(
                             &task.container.ns,
                             &task.container.pod_name,
                         ) {
