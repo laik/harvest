@@ -341,9 +341,11 @@ impl AutoScanner {
                             _ => continue,
                         }
                         continue;
-                    } else if op == notify::Op::CREATE | notify::Op::REMOVE | notify::Op::WRITE
-                        || op == notify::Op::CREATE | notify::Op::REMOVE
-                        || op == notify::Op::REMOVE | notify::Op::WRITE
+                    } else if (op == notify::Op::CREATE | notify::Op::REMOVE | notify::Op::WRITE)
+                        || (op == notify::Op::CREATE | notify::Op::REMOVE)
+                        || (op == notify::Op::REMOVE | notify::Op::WRITE)
+                        || op == notify::Op::RENAME
+                        || op == notify::Op::CLOSE_WRITE
                     {
                         match docker_config_file_type(path) {
                             DockerConfigFileType::ConfigV2 => {
