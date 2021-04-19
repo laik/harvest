@@ -106,7 +106,10 @@ impl FileReaderWriter {
     pub fn remove_event(&self, path: &str) {
         if let Some(tx) = self.get(path) {
             if let Err(e) = tx.send(SendFileEvent::Close) {
-                eprintln!("[ERROR] frw send remove to {:?} handle error: {:?}", path, e);
+                eprintln!(
+                    "[ERROR] frw send remove to {:?} handle error: {:?}",
+                    path, e
+                );
             }
             self.remove(path);
         };
@@ -176,13 +179,19 @@ impl FileReaderWriter {
             return;
         }
 
+        println!(
+            "[INFO] open file reader for service {:?} pod {:?} container {:?} path {:?}",
+            &container.service_name, &container.pod_name, &container.container, &container.path
+        );
+
         let container_clone = container.clone();
         let mut offset = container.offset;
 
         let (tx, rx) = unbounded::<SendFileEvent>();
         task::spawn(async move {
             let mut bf = String::new();
-            let mut br = match Self::open_seek_buffer(&container_clone.path, container_clone.offset) {
+            let mut br = match Self::open_seek_buffer(&container_clone.path, container_clone.offset)
+            {
                 Ok(it) => it,
                 Err(e) => {
                     eprintln!("{:?}", e);
