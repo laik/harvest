@@ -3,6 +3,7 @@ use std::{collections::HashMap, fs::File, io::BufReader};
 const NAMESPACE_LABEL_NAME: &'static str = "io.kubernetes.pod.namespace";
 const PODNAME_LABEL_NAME: &'static str = "io.kubernetes.pod.name";
 const CONTAINERNAME_LABEL_NAME: &'static str = "io.kubernetes.container.name";
+const SANBOX_POD_NAME: &'static str = "POD";
 
 #[derive(Default, Debug, Clone, PartialEq, serde_derive::Serialize, serde_derive::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +49,13 @@ impl JSONConfig {
             return label.to_string();
         }
         "".to_string()
+    }
+
+    pub fn is_sanbox_pod(&self) -> bool {
+        if self.get_container_name() == SANBOX_POD_NAME {
+            return true;
+        }
+        false
     }
 
     pub fn get_container_name(&self) -> String {

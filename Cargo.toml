@@ -23,6 +23,9 @@ path = "./output"
 [dependencies.file]
 path = "./file"
 
+[dependencies.filter]
+path = "./filter"
+
 [dependencies]
 structopt = { version = "0.3", features = ["paw"] }
 paw = "1.0"

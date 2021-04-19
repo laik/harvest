@@ -139,9 +139,10 @@ impl AutoScanner {
     }
 
     fn insert(&self, k: &str, v: JSONConfig) {
-        if self.namespace != v.get_ns() {
+        if v.get_ns() == "" || self.namespace != v.get_ns() || v.is_sanbox_pod() {
             return;
         }
+
         let writer = self.cache[(self.hash(k) % self.cache.len()) as usize].write();
         match writer {
             Ok(mut w) => {

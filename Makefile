@@ -6,7 +6,7 @@ debug:
 
 run:
 	cargo build --release
-	./target/release/harvest --namespace kube-system --docker-dir ${PWD}/tmp --api-server http://localhost:9999/ --host node1
+	./target/release/harvest --namespace kube-system --docker-dir ${PWD}/tmp --api-server http://localhost:9998/ --host node1
 	
 docker:
 	docker build -t yametech/harvest:v1.0.0 .
