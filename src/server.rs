@@ -1,5 +1,6 @@
 use super::*;
 use async_std::task;
+use crossbeam::sync::WaitGroup;
 use file::FileReaderWriter;
 use rocket::config::{Config, Environment};
 use rocket::routes;
@@ -51,6 +52,9 @@ impl<'a> Harvest<'a> {
         registry_task_run_event_listener(TaskRunEvent(frw.clone()));
         registry_task_stop_event_listener(TaskStopEvent(frw.clone()));
 
+        let wg = WaitGroup::new();
+        let wg1 = wg.clone();
+
         let mut tasks = vec![];
         // start auto scanner with a new async
         tasks.push(task::spawn(async move {
@@ -75,6 +79,9 @@ impl<'a> Harvest<'a> {
                 db::insert(&item.to_pod())
             }
 
+            drop(wg1);
+            println!("[INFO] start collect file info to memory db");
+
             if let Err(e) = scan.watch_start() {
                 eprintln!("{:?}", e);
             }
@@ -92,6 +99,9 @@ impl<'a> Harvest<'a> {
                 .register(catchers![not_found])
                 .launch();
         }));
+
+        wg.wait();
+        println!("[INFO] start task receiver");
 
         recv_tasks(&self.api_server_addr, &self.node_name);
         for _ in tasks {}
