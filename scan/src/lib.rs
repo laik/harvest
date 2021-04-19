@@ -341,26 +341,20 @@ impl AutoScanner {
                             _ => continue,
                         }
                         continue;
-                    } else if (op == notify::Op::CREATE | notify::Op::REMOVE | notify::Op::WRITE)
-                        || (op == notify::Op::CREATE | notify::Op::REMOVE)
-                        || (op == notify::Op::REMOVE | notify::Op::WRITE)
-                        || op == notify::Op::RENAME
-                        || op == notify::Op::CLOSE_WRITE
-                    {
-                        match docker_config_file_type(path) {
-                            DockerConfigFileType::ConfigV2 => {
-                                self.remove(path);
-                            }
-                            DockerConfigFileType::Log => {
-                                self.dispatch_close_event(&PathEventInfo {
-                                    path: path.to_string(),
-                                    ..Default::default()
-                                })
-                            }
-                            _ => continue,
+                    }
+                    
+                    match docker_config_file_type(path) {
+                        DockerConfigFileType::ConfigV2 => {
+                            self.remove(path);
+                        }
+                        DockerConfigFileType::Log => self.dispatch_close_event(&PathEventInfo {
+                            path: path.to_string(),
+                            ..Default::default()
+                        }),
+                        _ => {
+                            println!("[INFO] event {:?} {:?} ({:?})", op, path, cookie);
                         }
                     }
-                    println!("unhandled event {:?} {:?} ({:?})", op, path, cookie);
                 }
             }
         }

@@ -141,7 +141,7 @@ pub fn container_upload_stop(ns: &str, container_name: &str) {
             continue;
         }
         container.un_upload();
-        container.set_state_stop();
+        container.state_stop();
         update(&container);
     }
 }
@@ -153,7 +153,7 @@ pub fn container_upload_start(ns: &str, container_name: &str) {
             continue;
         }
         container.upload();
-        container.set_state_run();
+        container.state_running();
         update(&container);
     }
 }

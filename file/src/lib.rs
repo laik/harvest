@@ -201,7 +201,7 @@ impl FileReaderWriter {
 
         self.registry(&container.path, tx);
 
-        db::update(&container.set_state_run());
+        db::update(&container.state_running());
         if let Err(e) = self.send_write_event(&container.path) {
             eprintln!("[ERROR] frw send first event error: {:?}", e);
         }

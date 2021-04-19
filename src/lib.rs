@@ -186,7 +186,7 @@ impl TaskStorage {
                             container
                                 .merge_with(&task.container)
                                 .upload()
-                                .set_state_run();
+                                .state_running();
 
                             task.container = container;
                             tasks
@@ -210,7 +210,7 @@ impl TaskStorage {
                             &task.container.ns,
                             &task.container.pod_name,
                         ) {
-                            container.un_upload().set_state_stop();
+                            container.un_upload().state_stop();
                             task.container = container;
                             tasks
                                 .entry(task.container.pod_name.clone())

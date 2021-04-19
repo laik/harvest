@@ -25,17 +25,17 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn set_state_run(&mut self) -> &mut Self {
+    pub fn state_running(&mut self) -> &mut Self {
         self.state = State::Running;
         self
     }
 
-    pub fn set_state_ready(&mut self) -> &mut Self {
+    pub fn state_ready(&mut self) -> &mut Self {
         self.state = State::Ready;
         self
     }
 
-    pub fn set_state_stop(&mut self) -> &mut Self {
+    pub fn state_stop(&mut self) -> &mut Self {
         self.state = State::Stopped;
         self
     }

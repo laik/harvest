@@ -49,14 +49,14 @@ pub(crate) fn recv_tasks(addr: &str, node_name: &str) {
 
                 if cmd.op == RUN {
                     println!(
-                        "[INFO] task recv run task ns:{:?},pod:{:?},ouput:{:?}",
-                        &cmd.ns, &cmd.pod_name, &cmd.output
+                        "[INFO] task recv run task ns:{:?}, pod:{:?}, output:{:?}, server:{:?}",
+                        &cmd.ns, &cmd.pod_name, &cmd.output, &cmd.service_name
                     );
                     run_task(Task::from(cmd));
                 } else if cmd.op == STOP {
                     println!(
-                        "[INFO] task recv stop task ns:{:?},pod:{:?},ouput:{:?}",
-                        &cmd.ns, &cmd.pod_name, &cmd.output
+                        "[INFO] task recv stop task ns:{:?}, pod:{:?}, output:{:?}, server:{:?}",
+                        &cmd.ns, &cmd.pod_name, &cmd.output, &cmd.service_name
                     );
                     stop_task(Task::from(cmd));
                 } else if cmd.op == HELLO {
