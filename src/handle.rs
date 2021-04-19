@@ -48,21 +48,7 @@ where
     T: Clone + GetPathEventInfo,
 {
     fn handle(&self, t: T) {
-        let c = t.get().to_pod();
-        if let Some(t) = get_pod_task(&c.pod_name) {
-            if !t.container.is_upload() {
-                return;
-            }
-            match db::get_pod(&c.pod_name) {
-                Some(mut dc) => {
-                    dc.merge_with(&t.container).upload().state_running();
-                    db::insert(&dc);
-                    self.0.open_event(&mut dc);
-                }
-                None => return,
-            }
-        }
-        self.0.write_event(&c.path);
+        self.0.write_event(&t.get().to_pod().path);
     }
 }
 
